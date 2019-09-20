@@ -1,0 +1,58 @@
+{
+  "version": 8,
+  "name": "Dynamic new",
+  "metadata": {
+    "mapbox:type": "default",
+    "mapbox:origin": "streets-v11",
+    "mapbox:autocomposite": true,
+    "mapbox:groups": {
+      "1444855786460.0557": {
+        "name": "Roads",
+        "collapsed": true
+      },
+      "1444934295202.7542": {
+        "name": "Admin boundaries",
+        "collapsed": true
+      },
+      "1444855799204.86": {
+        "name": "Bridges",
+        "collapsed": true
+      },
+      "1444855769305.6016": {
+        "name": "Tunnels",
+        "collapsed": true
+      }
+    },
+    "mapbox:sdk-support": {
+      "js": "0.54.0",
+      "android": "7.4.0",
+      "ios": "4.11.0"
+    }
+  },
+  "center": [
+    24.882922194397565,
+    60.05591688106924
+  ],
+  "zoom": 10.246290196499492,
+  "bearing": 0,
+  "pitch": 0,
+  "sources": {},
+  "sprite": "mapbox://sprites/malliina/ck0jlem470onc1ckgaxtvlb8m/5ai059mm7rkvdk5nvzwa3qw9e",
+  "glyphs": "mapbox://fonts/malliina/{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "new-layer",
+      "type": "background",
+      "paint": {
+        "background-color": "#333"
+      },
+      "interactive": true
+    }
+  ],
+  "created": "2019-09-14T13:34:53.065Z",
+  "id": "ck0jlem470onc1ckgaxtvlb8m",
+  "modified": "2019-09-14T16:20:59.961Z",
+  "owner": "malliina",
+  "visibility": "private",
+  "draft": false
+}
