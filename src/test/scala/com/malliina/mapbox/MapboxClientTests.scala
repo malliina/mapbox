@@ -224,6 +224,14 @@ class MapboxClientTests extends FunSuite {
 
   def await[T](f: Future[T]) = Await.result(f, 60.seconds)
 
+  test("renames") {
+    Files.list(Paths.get("data")).forEach { path =>
+    val name = path.getFileName.toString
+      if(!Files.isDirectory(path) && name.startsWith("avoin:")) {
+        Files.move(path, path.getParent.resolve(s"avoin-${name.drop("avoin:".length)}"))
+      }
+    }
+  }
   val icons = Seq(
     "cardinal-north-30-opt",
     "cardinal-east-30-opt",
