@@ -3,7 +3,9 @@ package com.malliina.mapbox
 import java.io.Serializable
 import java.nio.file.Paths
 
+import org.geotools.data.DataStoreFinder
 import org.geotools.data.simple.SimpleFeatureIterator
+import org.geotools.data.store.ContentFeatureSource
 import org.geotools.data.wfs.WFSDataStoreFactory
 import org.geotools.feature.DefaultFeatureCollection
 import org.geotools.feature.simple.SimpleFeatureBuilder
@@ -12,33 +14,53 @@ import org.geotools.geometry.jts.JTS
 import org.geotools.referencing.CRS
 import org.geotools.referencing.crs.DefaultGeographicCRS
 import org.locationtech.jts.geom.Geometry
-import org.scalatest.FunSuite
 import org.slf4j.LoggerFactory
 
 import scala.jdk.CollectionConverters.MapHasAsJava
 
-class WFSTests extends FunSuite {
+class WFSTests extends BaseSuite {
   val log = LoggerFactory.getLogger(getClass)
-  val connectionParameters = Map[String, Serializable](
-    "WFSDataStoreFactory:GET_CAPABILITIES_URL" -> "https://julkinen.vayla.fi/inspirepalvelu/avoin/wfs?request=getcapabilities"
+  val openCapabilities = connectionParameters(
+    "https://julkinen.vayla.fi/inspirepalvelu/avoin/wfs?request=getcapabilities")
+  val restrictedCapabilities = connectionParameters(
+    "https://julkinen.liikennevirasto.fi/inspirepalvelu/rajoitettu/wfs?request=getcapabilities")
+  // Must be shapefile, not JSON, otherwise the server times out after one minute, most likely due to the payload size
+  val depthAreasUrl = "https://julkinen.vayla.fi/inspirepalvelu/wfs?request=getfeature&typename=rajoitettu:syvyysalue_a&outputformat=shape-zip"
+
+  val depthAreas = userHome.resolve("boat/syvyysalue_a.shp")
+
+  def connectionParameters(url: String) = Map[String, Serializable](
+    "WFSDataStoreFactory:GET_CAPABILITIES_URL" -> url,
+    "WFSDataStoreFactory:TIMEOUT" -> 600000
   )
+
+  ignore("read zip") {
+    val store = DataStoreFinder.getDataStore(Map("url" -> depthAreas.toUri.toString).asJava)
+    println(store.getTypeNames.toList)
+  }
 
   ignore("typenames") {
     val factory = new WFSDataStoreFactory
-    val ds = factory.createDataStore(connectionParameters.asJava)
-    println(ds.getTypeNames.toList)
+    val ds = factory.createDataStore(openCapabilities.asJava)
+    ds.getTypeNames.toList.sorted foreach println
+  }
+
+  test("restricted") {
+    val factory = new WFSDataStoreFactory
+    val ds = factory.createDataStore(restrictedCapabilities.asJava)
+    ds.getTypeNames.toList.sorted foreach println
   }
 
   ignore("write") {
     val factory = new WFSDataStoreFactory
-    val ds = factory.createDataStore(connectionParameters.asJava)
+    val ds = factory.createDataStore(restrictedCapabilities.asJava)
     val names = ds.getTypeNames.toList
     names.map { name =>
       log.info(s"Inspecting $name...")
       try {
-        val src = ds.getFeatureSource(name)
+        val src: ContentFeatureSource = ds.getFeatureSource(name)
         val features = src.getFeatures.features()
-        write(features, s"$name.json")
+        write(features, s"${name.replace(":", "-")}.json")
       } catch {
         case e: Throwable =>
           log.error(s"Failed to read $name", e)

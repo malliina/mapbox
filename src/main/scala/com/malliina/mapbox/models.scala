@@ -4,7 +4,8 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 
 import com.malliina.values.{StringCompanion, Username, WrappedString}
-import play.api.libs.json.{Format, JsArray, JsObject, JsValue, Json, Writes}
+import org.slf4j.LoggerFactory
+import play.api.libs.json._
 
 /** Name of an icon in a sprite of a style.
   *
@@ -55,12 +56,25 @@ object LayerObject {
   def apply(source: TilesetSourceId): LayerObject = apply(source, 0, 16, None, None)
 }
 
-case class Recipe(version: Int, layers: Map[String, LayerObject])
+case class Recipe(version: Int, layers: Map[String, LayerObject]) {
+  def updated(newLayers: Map[String, LayerObject]) = Recipe(version, layers ++ newLayers)
+  def ++(other: Recipe) = Recipe(version, layers ++ other.layers)
+}
 
 object Recipe {
   implicit val json = Json.format[Recipe]
 
-  def apply(layers: Map[SourceLayerId, LayerObject]): Recipe = apply(1, layers.map { case (k, v) => k.value -> v })
+  val empty = apply(1, Map.empty)
+
+  def merge(rs: Seq[Recipe]): Recipe = rs.foldLeft(Recipe.empty)(_ ++ _)
+
+  def apply(layers: Map[SourceLayerId, LayerObject]): Recipe =
+    apply(1, layers.map { case (k, v) => k.value -> v })
+}
+
+case class RecipeResponse(id: TilesetId, recipe: Recipe)
+object RecipeResponse {
+  implicit val json = Json.format[RecipeResponse]
 }
 
 case class TilesetSpec(name: TilesetName, recipe: Recipe, description: Option[String] = None)
@@ -97,28 +111,36 @@ object StyleSource {
   def vector(url: String) = StyleSource(url, "vector")
 }
 
-case class UpdateStyle(version: Int,
-                       name: String,
-                       metadata: Option[JsObject],
-                       sources: Option[Map[String, StyleSource]],
-                       sprite: Option[String],
-                       glyphs: Option[String],
-                       layers: Option[Seq[JsObject]])
-
-object UpdateStyle {
-  implicit val json = Json.format[UpdateStyle]
-}
-
 case class FeatureCollection(features: Seq[JsObject])
 
 object FeatureCollection {
   implicit val json = Json.format[FeatureCollection]
+  val log = LoggerFactory.getLogger(getClass)
 
   def lineDelimit(in: Path, out: Path) = {
+    log.info(s"Line-delimiting '$in' to '${out.toAbsolutePath}'...")
     val coll = Json.parse(Files.readAllBytes(in)).as[FeatureCollection]
+    log.info(s"Parsed '$in' as JSON, writing...")
     val lines = coll.features.map(Json.stringify).mkString("\n")
     Files.write(out, lines.getBytes(StandardCharsets.UTF_8))
   }
+}
+
+case class PublishResponse(message: String, jobId: String)
+
+object PublishResponse {
+  implicit val json = Json.format[PublishResponse]
+}
+
+case class TilesetStatus(id: TilesetId,
+                         queued: Int,
+                         processing: Int,
+                         success: Int,
+                         failed: Int,
+                         last_completed_job: String)
+
+object TilesetStatus {
+  implicit val json = Json.format[TilesetStatus]
 }
 
 case class TilesetSourceCreated(id: TilesetSourceId, files: Int)
@@ -143,13 +165,19 @@ object LayoutSpec {
   implicit val writer = Writes[LayoutSpec] {
     case is @ ImageLayout(_, _, _) => ImageLayout.json.writes(is)
     case ts @ TextLayout(_, _, _)  => TextLayout.json.writes(ts)
-    case LayoutEmpty               => Json.obj()
+    case vl @ VisibilityLayout(_)  => VisibilityLayout.writer.writes(vl)
+    case EmptyLayout               => Json.obj()
   }
 }
 
-case object LayoutEmpty extends LayoutSpec
+case object EmptyLayout extends LayoutSpec
 
-case class ImageLayout(`icon-image`: IconName, `icon-offset`: Option[Seq[Int]], visibility: Option[String] = None)
+case class VisibilityLayout(visibility: Visibility) extends LayoutSpec
+object VisibilityLayout {
+  implicit val writer = Json.writes[VisibilityLayout]
+}
+
+case class ImageLayout(`icon-image`: IconName, `icon-offset`: Option[Seq[Double]], visibility: Option[String] = None)
     extends LayoutSpec
 object ImageLayout {
   implicit val json = Json.format[ImageLayout]
@@ -190,7 +218,6 @@ object FilterSpec {
 }
 
 case class MultiFilter(op: Combinator, operands: Seq[FilterSpec]) extends FilterLike
-
 object MultiFilter {
   implicit val writer: Writes[MultiFilter] = Writes[MultiFilter] { mf =>
     Json.arr(mf.op.name) ++ JsArray(mf.operands.map { fs =>
@@ -199,8 +226,10 @@ object MultiFilter {
   }
 }
 
-case class Paint(`circle-color`: Option[String] = None, `fill-color`: Option[String] = None)
-
+case class Paint(`circle-color`: Option[String] = None,
+                 `fill-color`: Option[String] = None,
+                 `fill-opacity`: Option[Double] = None,
+                 `line-color`: Option[String] = None)
 object Paint {
   implicit val json = Json.format[Paint]
 }
@@ -209,10 +238,37 @@ case class LayerSpec(id: LayerId,
                      `type`: String,
                      layout: LayoutSpec,
                      source: SourceId,
-                     filter: Option[FilterLike] = None,
                      `source-layer`: SourceLayerId,
+                     filter: Option[FilterLike] = None,
                      paint: Option[Paint] = None,
-                     minzoom: Option[Int] = None)
+                     minzoom: Option[Double] = None)
 object LayerSpec {
-  implicit val json = Json.writes[LayerSpec]
+  implicit val json: OWrites[LayerSpec] = Json.writes[LayerSpec]
+}
+
+case class UpdateStyle(version: Int,
+                       name: String,
+                       metadata: Option[JsObject],
+                       sources: Option[Map[String, StyleSource]],
+                       sprite: Option[String],
+                       glyphs: Option[String],
+                       layers: Option[Seq[JsObject]]) {
+  def updated(newLayers: Seq[LayerSpec]): UpdateStyle = {
+    val asJson = newLayers.map { l =>
+      Json.toJsObject(l)
+    }
+    copy(
+      layers = Option(layers.getOrElse(Nil).filterNot(l => newLayers.exists(_.id == (l \ "id").as[LayerId])) ++ asJson))
+  }
+
+  def withoutLayer(id: LayerId) = copy(layers = layers.map(_.filterNot(obj => (obj \ "id").as[LayerId] == id)))
+
+  def updated(source: SourceId, tileset: TilesetId): UpdateStyle = {
+    val styleSource = StyleSource.vector(s"mapbox://$tileset")
+    copy(sources = Option(sources.getOrElse(Map.empty).updated(source.value, styleSource)))
+  }
+}
+
+object UpdateStyle {
+  implicit val json = Json.format[UpdateStyle]
 }
