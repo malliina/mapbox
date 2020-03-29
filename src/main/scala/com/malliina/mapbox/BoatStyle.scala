@@ -1,6 +1,6 @@
 package com.malliina.mapbox
 
-object BoatStyle extends BoatStyle(SourceId("mle"))
+object BoatStyle extends BoatStyle(SourceId("mle7"))
 
 class BoatStyle(val src: SourceId) {
   val icons = Seq(
@@ -32,25 +32,23 @@ class BoatStyle(val src: SourceId) {
   val lighthouseYellow = simpleSymbolLayer("marks-merimajakka", "lighthouse-30-yellow", "TY_JNR", 1, -15)
   val sectorLight = simpleSymbolLayer("marks-sektoriloisto", "lighthouse-15", "TY_JNR", 2, 0)
   val noWaves = simpleSymbolLayer("marks-no-waves", "no-waves-15", "VLM_LAJI", 6, -7.5)
-  val safeWaters = LayerSpec(
-    LayerId("turvavesi"),
+  val safeWaters = LayerStyling(
     "circle",
     VisibilityLayout(Visibility.Visible),
     src,
-    SourceLayerId("turvalaitteet"),
     Option(FilterSpec(Operator.Eq, "NAVL_TYYP", 8)),
     Option(Paint(`circle-color` = Option("hsl(0, 58%, 82%)"))),
-    minzoom = Option(13)
+    minzoom = Option(13),
+    layerIdOverride = Option(LayerId("turvavesi"))
   )
-  val kummeli = LayerSpec(
-    LayerId("kummeli"),
+  val kummeli = LayerStyling(
     "circle",
     VisibilityLayout(Visibility.Visible),
     src,
-    SourceLayerId("turvalaitteet"),
     Option(FilterSpec(Operator.Eq, "TY_JNR", 13)),
     Option(Paint(`circle-color` = Option("hsl(0, 6%, 98%)"))),
-    minzoom = Option(13)
+    minzoom = Option(13),
+    layerIdOverride = Option(LayerId("kummeli"))
   )
   val speedLimit = symbolLayer(
     "marks-speed-limit",
@@ -58,70 +56,52 @@ class BoatStyle(val src: SourceId) {
     MultiFilter(Combinator.All, Seq(FilterSpec(Operator.Eq, "RA_ARVO", 10), FilterSpec(Operator.Eq, "VLM_LAJI", 11))),
     0
   )
-  val vaylaAlueet = LayerSpec(
-    LayerId("vaylaalueet"),
+  val vaylaAlueet = LayerStyling(
     "fill",
     VisibilityLayout(Visibility.Visible),
     src,
-    SourceLayerId("vaylaalueet"),
     paint = Option(Paint(`fill-color` = Option("hsl(118, 96%, 37%)"), `fill-opacity` = Option(0.1)))
   )
-  val vaylat = LayerSpec(
-    LayerId("vaylat"),
+  val vaylat = LayerStyling(
     "line",
     VisibilityLayout(Visibility.Visible),
     src,
-    SourceLayerId("vaylat"),
     paint = Option(Paint(`line-color` = Option("hsl(122, 89%, 52%)")))
   )
-  val taululinja = LayerSpec(
-    LayerId("taululinja"),
+  val taululinja = LayerStyling(
     "line",
     VisibilityLayout(Visibility.Visible),
     src,
-    SourceLayerId("taululinja"),
     paint = Option(Paint(`line-color` = Option("hsl(0, 84%, 76%)")))
   )
-  val limitArea = LayerSpec(
-    LayerId("rajoitusalue"),
+  val limitArea = LayerStyling(
     "fill",
     EmptyLayout,
     src,
-    SourceLayerId("rajoitusalue_a"),
     paint = Option(Paint(`fill-color` = Option("hsla(321, 96%, 56%, 0.05)")))
   )
-
-  val depthPointLayers = (0 to 3).map { i =>
-    LayerSpec(
-      LayerId(s"syvyyspiste_p$i"),
-      "symbol",
-      TextLayout("{DEPTH}", 10),
-      src,
-      SourceLayerId(s"syvyyspiste_p$i"),
-      minzoom = Option(14.7)
-    )
-  }
-
-  val aluemeriRaja = LayerSpec(
-    LayerId("aluemeri-raja"),
+  val depthPointLayers = LayerStyling(
+    "symbol",
+    TextLayout("{DEPTH}", 10),
+    src,
+    minzoom = Option(14.7)
+  )
+  val aluemeriRaja = LayerStyling(
     "fill",
     VisibilityLayout(Visibility.Visible),
     src,
-    SourceLayerId("aluemeri-raja"),
     paint = Option(Paint(`fill-color` = Option("hsl(0, 95%, 16%)"), `fill-opacity` = Option(0.1)))
   )
 
-  val depthAreaLayers = (0 to 3).map { i =>
-    LayerSpec(
-      LayerId(s"syvyysalue_a$i"),
-      "fill",
-      VisibilityLayout(Visibility.Visible),
-      src,
-      SourceLayerId(s"syvyysalue_a$i"),
-      paint = Option(Paint(`fill-color` = Option("#000000"), `fill-opacity` = Option(0.1)))
-    )
-  }
-  val all = depthAreaLayers ++ depthPointLayers ++ Seq(
+  val depthAreaLayers = LayerStyling(
+    "fill",
+    VisibilityLayout(Visibility.Visible),
+    src,
+    paint = Option(Paint(`fill-color` = Option("#000000"), `fill-opacity` = Option(0.1)))
+  )
+  val all = Seq(
+    depthAreaLayers,
+    depthPointLayers,
     vaylaAlueet,
     limitArea,
     vaylat,
@@ -141,6 +121,7 @@ class BoatStyle(val src: SourceId) {
     safeWaters,
     speedLimit
   )
+  val allTest = Seq(vaylat)
 
   def markLayer(id: String, icon: String, navFilterValue: Int) =
     simpleSymbolLayer(id, icon, "NAVL_TYYP", navFilterValue, -15)
@@ -149,13 +130,12 @@ class BoatStyle(val src: SourceId) {
     symbolLayer(id, icon, FilterSpec(Operator.Eq, prop, propValue), offsetY)
 
   def symbolLayer(id: String, icon: String, filter: FilterLike, offsetY: Double) =
-    LayerSpec(
-      LayerId(id),
+    LayerStyling(
       "symbol",
       iconLayout(icon, offsetY),
       src,
-      SourceLayerId("turvalaitteet"),
-      Option(filter)
+      Option(filter),
+      layerIdOverride = Option(LayerId(id))
     )
 
   def iconLayout(name: String, offsetY: Double) = ImageLayout(IconName(name), Option(Seq(0, offsetY)))

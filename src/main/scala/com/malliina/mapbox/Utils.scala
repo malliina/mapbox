@@ -56,22 +56,4 @@ object Utils {
         .toList
     } finally zip.close()
   }
-
-  def traverseSlowly[T, U](ls: Seq[T], parallelism: Int)(run: T => Future[U])(
-      implicit ec: ExecutionContext): Future[Seq[U]] = {
-    val (batch, remaining) = ls.splitAt(parallelism)
-    if (batch.isEmpty) {
-      Future.successful(Nil)
-    } else {
-      Future
-        .traverse(batch) { t =>
-          run(t)
-        }
-        .flatMap { batchResult =>
-          traverseSlowly(remaining, parallelism)(run).map { nextResults =>
-            batchResult ++ nextResults
-          }
-        }
-    }
-  }
 }

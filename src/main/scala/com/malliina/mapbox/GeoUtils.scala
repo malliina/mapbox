@@ -28,7 +28,17 @@ object GeoUtils {
 class GeoUtils(val http: OkClient) {
   import http.exec
 
-  def shapeToRecipe(url: FullUrl, parts: Int): Future[Seq[Path]] = {
+  /** <ol>
+    *   <li>Downloads a shapefile from the url in `task`</li>
+    *   <li>Unzips it</li>
+    *   <li>Converts any shapefiles to GeoJSON files</li>
+    * </ol>
+    *
+    * @param task file to download
+    * @return
+    */
+  def shapeToGeoJson(task: GeoTask): Future[Seq[Path]] = {
+    val url = task.url
     val downloadedFile = Files.createTempFile("shape-", ".zip")
     log.info(s"Downloading '$url' to '${downloadedFile.toAbsolutePath}'...")
     download(url, downloadedFile).flatMap { size =>
@@ -37,7 +47,7 @@ class GeoUtils(val http: OkClient) {
         .unzip(downloadedFile)
         .find(f => FilenameUtils.getExtension(f.getFileName.toString) == "shp")
         .map { shape =>
-          Future.successful(convert(shape, 4))
+          Future.successful(convert(shape, task.parts))
         }
         .getOrElse {
           Future.failed(new Exception(s"No shapefile found in '${downloadedFile.toAbsolutePath}'."))
@@ -85,7 +95,7 @@ class GeoUtils(val http: OkClient) {
     }
     (0 until splitFactor).map { i =>
       val name = FilenameUtils.removeExtension(shapeFile.getFileName.toString)
-      val fileOut = parent.resolve(s"$name$i.json")
+      val fileOut = parent.resolve(s"boat-$name$i.json")
       writer.writeFeatureCollection(transformedCollections.head(i), fileOut.toFile)
       fileOut
     }.toList

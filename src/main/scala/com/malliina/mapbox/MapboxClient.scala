@@ -1,10 +1,12 @@
 package com.malliina.mapbox
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 import java.util
 import java.util.concurrent.TimeUnit
 
-import com.malliina.http.{FullUrl, OkClient, OkHttpResponse}
+import concurrent.duration.{DurationLong, FiniteDuration}
+import com.malliina.http.{FullUrl, OkClient, OkHttpResponse, ResponseException}
 import com.malliina.mapbox.MapboxClient.log
 import com.malliina.values.{AccessToken, Username}
 import com.typesafe.config.ConfigFactory
@@ -13,7 +15,7 @@ import org.apache.commons.io.FilenameUtils
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{JsValue, Json, Reads, Writes}
 
-import scala.concurrent.Future
+import scala.concurrent.{Future, TimeoutException}
 
 object MapboxClient {
   private val log = LoggerFactory.getLogger(getClass)
@@ -41,7 +43,8 @@ class MapboxClient(token: AccessToken) {
       .connectTimeout(30, TimeUnit.SECONDS)
       .readTimeout(1800, TimeUnit.SECONDS)
       .writeTimeout(1800, TimeUnit.SECONDS)
-      .build())
+      .build()
+  )
   val geo = GeoUtils(http)
   import http.exec
 
@@ -54,58 +57,93 @@ class MapboxClient(token: AccessToken) {
   def style(id: StyleId) = get[JsValue](s"/styles/v1/$username/$id")
   def styleTyped(id: StyleId) = get[UpdateStyle](s"/styles/v1/$username/$id")
   def styles = get[JsValue](s"/styles/v1/$username")
+  def stylesTyped = get[Seq[Style]](s"/styles/v1/$username")
   def createStyle(style: JsValue) = http.postJsonAs[JsValue](apiUrl(s"/styles/v1/$username"), style)
 
   def sources = get[JsValue](s"/tilesets/v1/sources/$username")
   def tilesets = get[JsValue](s"/tilesets/v1/$username")
 
-  def recipeFromGeoJson(geoJsons: Seq[Path]): Future[Recipe] = {
-    val mappings = geoJsons.map { file =>
-      (file, FilenameUtils.removeExtension(file.getFileName.toString))
-    }
-    makeRecipe(mappings)
-  }
-
-  def makeRecipe(mappings: Seq[(Path, String)]): Future[Recipe] =
-    Utils
-      .traverseSlowly(mappings, parallelism = 1) {
-        case (file, name) =>
-          createTilesetSource(TilesetSourceId(name), file).map { response =>
-            log.info(s"Created tileset source '${response.id}' from '$file'.")
-            SourceLayerId(name) -> LayerObject(response.id)
-          }
+  def makeRecipe(geoJsons: Seq[SourceLayerFile]): Future[Recipe] =
+    Concurrent
+      .traverseSlowly(geoJsons, parallelism = 1) { file =>
+        val name = FilenameUtils.removeExtension(file.file.getFileName.toString)
+        createTilesetSource(TilesetSourceId(name), file.file).map { response =>
+          log.info(s"Created tileset source '${response.id}' from '$file'.")
+          file.sourceLayerId -> LayerObject(response.id)
+        }
       }
       .map(pairs => Recipe(pairs.toMap))
 
-  def updateSource(source: SourceId, tileset: TilesetId, to: StyleId) =
+  def updateSource(source: SourceId, tileset: TilesetId, to: StyleId): Future[JsValue] =
     for {
       s <- styleTyped(to)
-      r <- update(to, s.updated(source, tileset))
-    } yield r
+      r <- updateStyle(to, s.withSource(source, tileset))
+    } yield {
+      log.info(s"Updated source '$source' with tileset '$tileset' in style '$to'.")
+      r
+    }
 
-  def updateLayer(style: StyleId, newLayers: Seq[LayerSpec]) =
-    transformLayers(style)(_.updated(newLayers))
+  def updateLayer(style: StyleId, newLayers: Seq[LayerSpec], retries: Int = 1): Future[JsValue] = {
+    transformStyle(style)(_.withLayers(newLayers)).recoverWith {
+      case re: ResponseException =>
+        val code = re.response.code
+        if (re.response.code == 422 && retries > 0) {
+          log.info(s"Style update returned $code, retrying soon...")
+          Concurrent.scheduleIn(10.seconds) {
+            updateLayer(style, newLayers, retries - 1)
+          }
+        } else {
+          Future.failed(re)
+        }
+    }
+  }
+
+  def installSourceAndLayers(style: StyleId, tilesetId: TilesetId, sourceId: SourceId, newLayers: Seq[LayerSpec]) =
+    transformStyle(style) { old =>
+      val json = Json.toJson(newLayers)
+      log.info(s"Installing source '$sourceId' with tileset '$tilesetId' and layers '$json' to style '$style'.")
+      old.withSource(sourceId, tilesetId).withLayers(newLayers)
+    }
 
   def removeLayer(layer: LayerId, from: StyleId): Future[JsValue] =
-    transformLayers(from)(_.withoutLayer(layer))
+    transformStyle(from)(_.withoutLayer(layer)).map { r =>
+      log.info(s"Removed layer '$layer' from style '$from'.")
+      r
+    }
 
-  def transformLayers(style: StyleId)(f: UpdateStyle => UpdateStyle) = for {
-    old <- styleTyped(style)
-    updated <- update(style, f(old))
-  } yield updated
+  def transformStyle(style: StyleId)(f: UpdateStyle => UpdateStyle): Future[JsValue] =
+    for {
+      old <- styleTyped(style)
+      updated <- updateStyle(style, f(old))
+    } yield {
+      updated
+    }
 
-  def update(style: StyleId, updated: UpdateStyle) =
-    updateJson(style, Json.toJson(updated))
+  def updateStyle(style: StyleId, updated: UpdateStyle): Future[JsValue] =
+    updateStyleJson(style, Json.toJson(updated)).map { r =>
+      val path = Paths.get(s"style-${System.currentTimeMillis()}.json")
+      Files.write(
+        path,
+        Json.prettyPrint(r).getBytes(StandardCharsets.UTF_8)
+      )
+      log.info(s"Updated style '$style'. Wrote to '${path.toAbsolutePath}'.")
+      r
+    }
 
-  def updateJson(style: StyleId, updated: JsValue) =
+  def updateStyleJson(style: StyleId, updated: JsValue): Future[JsValue] = {
+    log.info(s"Updating style '$style'...")
     patch[JsValue, JsValue](apiUrl(s"/styles/v1/$username/$style"), updated)
+  }
 
   def tilesetSources() = get[JsValue](s"/tilesets/v1/sources/$username")
 
   def delete(id: TilesetSourceId) = {
     val url = apiUrl(s"/tilesets/v1/sources/$username/$id")
     val req = new Request.Builder().url(url.url).delete().build()
-    http.execute(req)
+    http.execute(req).map { r =>
+      log.info(s"Deleted tileset source '$id'.")
+      r
+    }
   }
 
   def createTilesetSource(id: TilesetSourceId, geoJson: Path): Future[TilesetSourceCreated] = {
@@ -117,28 +155,83 @@ class MapboxClient(token: AccessToken) {
       .setType(MultipartBody.FORM)
       .addFormDataPart("file", "tileset.json.ld", RequestBody.create(tempFile.toFile, textPlain))
       .build()
-    post[TilesetSourceCreated](url, body)
+    post[TilesetSourceCreated](url, body).map { r =>
+      log.info(s"Created tileset source '$id' from '$tempFile'.")
+      r
+    }
   }
 
   def createTileset(recipe: Recipe): Future[TilesetId] = {
     val tilesetName = TilesetName.random()
     val tilesetId = TilesetId.random(username, tilesetName)
     createTileset(tilesetId, TilesetSpec(tilesetName, recipe)).map { _ =>
-      log.info(s"Created tileset '$tilesetId'.")
+      log.debug(s"Created tileset '$tilesetId' with name '$tilesetName'.")
       tilesetId
     }
   }
 
-  def createTileset(id: TilesetId, spec: TilesetSpec): Future[JsValue] =
-    http.postJsonAs[JsValue](apiUrl(s"/tilesets/v1/$id"), Json.toJson(spec))
+  def createTileset(id: TilesetId, spec: TilesetSpec): Future[JsValue] = {
+    val payload = Json.toJson(spec)
+    http
+      .postJsonAs[JsValue](apiUrl(s"/tilesets/v1/$id"), payload)
+      .recoverWith {
+        case re: ResponseException =>
+          val res = re.response
+          log.error(
+            s"Failed to create tileset '$id' from '$payload'. Posted '$payload'. Code ${res.code}. Body '${res.asString}'.",
+            re
+          )
+          Future.failed(re)
+      }
+      .map { r =>
+        log.info(s"Created tileset '$id' named '${spec.name}' with ${spec.recipe.layers.size} layers.")
+        r
+      }
+  }
 
   def recipe(id: TilesetId) = get[RecipeResponse](s"/tilesets/v1/$id/recipe")
-  def updateRecipe(id: TilesetId, recipe: Recipe): Future[OkHttpResponse] =
-    patchEmpty(apiUrl(s"/tilesets/v1/$id/recipe"), recipe)
 
-  def tileset(id: TilesetId) = get[TilesetStatus](s"/tilesets/v1/$id/status")
-  def publish(id: TilesetId) =
-    post[PublishResponse](apiUrl(s"/tilesets/v1/$id/publish"), RequestBody.create("", textPlain))
+  def updateRecipe(id: TilesetId, recipe: Recipe): Future[OkHttpResponse] =
+    patchEmpty(apiUrl(s"/tilesets/v1/$id/recipe"), recipe).map { r =>
+      log.info(s"Updated recipe of tileset '$id'.")
+      r
+    }
+
+  def tilesetStatus(id: TilesetId) = get[TilesetStatus](s"/tilesets/v1/$id/status")
+  def tilesetJobStatus(tid: TilesetId, jid: JobId) = get[JobStatusResponse](s"/tilesets/v1/$tid/jobs/$jid")
+
+  def publishAndAwait(id: TilesetId) = startPublishJob(id).flatMap { res =>
+    awaitCompletion(id, res.jobId, 15.minutes)
+  }
+
+  def awaitCompletion(tileset: TilesetId, job: JobId, timeout: FiniteDuration): Future[JobStatusResponse] = {
+    val start = System.currentTimeMillis()
+    tilesetJobStatus(tileset, job).flatMap { res =>
+      val status = res.stage
+      if (status.isCompleted) {
+        log.info(s"Job '$job' of tileset '$tileset' completed.")
+        Future.successful(res)
+      } else if (timeout.toMillis > 0) {
+        log.debug(s"Status of '$job' is '$status', awaiting...")
+        Concurrent.scheduleIn(10.seconds) {
+          val now = System.currentTimeMillis()
+          awaitCompletion(tileset, job, timeout - (now - start).millis)
+        }
+      } else {
+        Future.failed(
+          new TimeoutException(
+            s"Timed out awaiting completion of job '$job' for tileset '$tileset'. Last known status was '$status'."
+          )
+        )
+      }
+    }
+  }
+
+  def startPublishJob(id: TilesetId): Future[PublishResponse] =
+    post[PublishResponse](apiUrl(s"/tilesets/v1/$id/publish"), RequestBody.create("", textPlain)).map { r =>
+      log.info(s"Started publishing tileset '$id'. Got job ID '${r.jobId}'...")
+      r
+    }
 
   def sprite(id: StyleId) = get[JsValue](s"/styles/v1/$username/$id/sprite")
   def sprite(id: StyleId, to: Path) = http.download(apiUrl(s"/styles/v1/$username/$id/sprite@2x.png"), to)
@@ -157,18 +250,30 @@ class MapboxClient(token: AccessToken) {
     }
   }
 
-  def post[R: Reads](url: FullUrl, body: RequestBody) =
-    http.post(url, body, Map.empty).flatMap { r =>
-      http.parse[R](r, url)
-    }
+  def post[R: Reads](url: FullUrl, body: RequestBody, retries: Int = 1): Future[R] =
+    http
+      .post(url, body, Map.empty)
+      .flatMap { r =>
+        http.parse[R](r, url)
+      }
+      .recoverWith {
+        case re: ResponseException =>
+          if (retries > 0) {
+            val times = if (retries == 1) "time" else "times"
+            log.warn(s"Failed to POST to '$url'. Retrying $retries $times...")
+            post(url, body, retries - 1)
+          } else {
+            Future.failed(re)
+          }
+      }
 
-  def patchEmpty[W: Writes](url: FullUrl, w: W) = {
+  def patchEmpty[W: Writes](url: FullUrl, w: W): Future[OkHttpResponse] = {
     val body = RequestBody.create(Json.stringify(Json.toJson(w)), OkClient.jsonMediaType)
     val req = new Request.Builder().url(url.url).patch(body).build()
     http.execute(req)
   }
 
-  def patch[W: Writes, R: Reads](url: FullUrl, w: W) =
+  def patch[W: Writes, R: Reads](url: FullUrl, w: W): Future[R] =
     patchEmpty(url, w).flatMap { r =>
       http.parse[R](r, url)
     }

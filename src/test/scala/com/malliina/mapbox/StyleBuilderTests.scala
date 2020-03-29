@@ -15,21 +15,9 @@ class StyleBuilderTests extends BaseSuite {
   val playground = StyleId("ck0slgajf056s1cm68wcy5z7w")
   val tileset = TilesetId("malliina.klrhwc")
 
-  ignore("end-to-end") {
-    await(addImages(BoatStyle.icons.map(IconName.apply), playground))
-    val tilesetId = publishTileset(Seq("vaylaalueet", "vaylat", "turvalaitteet", "rajoitusalue_a", "taululinja"))
-    await(client.updateSource(src, tilesetId, playground))
-    await(client.updateLayer(playground, all))
-  }
-
   ignore("update src") {
     val ok = await(client.updateSource(src, tileset, playground))
     out(ok)
-  }
-
-  test("update layers") {
-    val layerUpdates = await(client.updateLayer(playground, BoatStyle.all))
-    out(layerUpdates)
   }
 
   ignore("print") {
@@ -53,12 +41,12 @@ class StyleBuilderTests extends BaseSuite {
   }
 
   ignore("current") {
-    val json = await(client.tileset(tileset))
+    val json = await(client.tilesetStatus(tileset))
     out(json)
   }
 
   ignore("publish") {
-    val json = await(client.publish(tileset))
+    val json = await(client.startPublishJob(tileset))
     out(json)
   }
 
@@ -72,7 +60,7 @@ class StyleBuilderTests extends BaseSuite {
     val tilesetName = TilesetName.random()
     val tilesetId = TilesetId.random(client.username, tilesetName)
     await(client.createTileset(tilesetId, TilesetSpec(tilesetName, recipe)))
-    val r = await(client.publish(tilesetId))
+    val r = await(client.startPublishJob(tilesetId))
     println(r)
     tilesetId
   }

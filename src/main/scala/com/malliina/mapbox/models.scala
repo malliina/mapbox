@@ -3,13 +3,12 @@ package com.malliina.mapbox
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 
-import com.malliina.values.{StringCompanion, Username, WrappedString}
+import com.malliina.mapbox.JobStatus.{Failed, Processing, Queued, Success}
+import com.malliina.values.{StringCompanion, StringEnumCompanion, Username, WrappedString}
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 
 /** Name of an icon in a sprite of a style.
-  *
-  * @param value
   */
 case class IconName(value: String) extends WrappedString
 object IconName extends StringCompanion[IconName]
@@ -45,11 +44,34 @@ object TilesetSourceId extends StringCompanion[TilesetSourceId] {
   def random(): TilesetSourceId = apply(Utils.randomString(6))
 }
 
-case class LayerObject(source: TilesetSourceId,
-                       minzoom: Int,
-                       maxzoom: Int,
-                       features: Option[JsObject],
-                       tiles: Option[JsObject])
+case class JobId(value: String) extends WrappedString
+object JobId extends StringCompanion[JobId]
+
+sealed abstract class JobStatus(val status: String) {
+  override def toString: String = status
+  def isInProgress: Boolean = this == Queued || this == Processing
+  def isCompleted: Boolean = this == Success || this == Failed
+}
+
+object JobStatus extends StringEnumCompanion[JobStatus] {
+  // https://docs.mapbox.com/api/maps/#publish-a-tileset
+  override val all: Seq[JobStatus] = Seq(Queued, Processing, Success, Failed)
+
+  override def write(t: JobStatus): String = t.status
+
+  case object Queued extends JobStatus("queued")
+  case object Processing extends JobStatus("processing")
+  case object Success extends JobStatus("success")
+  case object Failed extends JobStatus("failed")
+}
+
+case class LayerObject(
+  source: TilesetSourceId,
+  minzoom: Int,
+  maxzoom: Int,
+  features: Option[JsObject],
+  tiles: Option[JsObject]
+)
 object LayerObject {
   implicit val json = Json.format[LayerObject]
 
@@ -77,6 +99,8 @@ object RecipeResponse {
   implicit val json = Json.format[RecipeResponse]
 }
 
+case class StyledRecipe(recipe: Recipe, style: Seq[LayerSpec])
+
 case class TilesetSpec(name: TilesetName, recipe: Recipe, description: Option[String] = None)
 
 object TilesetSpec {
@@ -97,7 +121,7 @@ object SourcedLayer {
   implicit val json = Json.format[SourcedLayer]
 }
 
-case class Style(version: Int, name: Option[String], sources: JsObject, layers: Seq[SourcedLayer])
+case class Style(id: String, version: Int, name: Option[String], sources: JsObject, created: String) //, layers: Seq[SourcedLayer])
 
 object Style {
   implicit val json = Json.format[Style]
@@ -126,18 +150,23 @@ object FeatureCollection {
   }
 }
 
-case class PublishResponse(message: String, jobId: String)
+case class PublishResponse(message: String, jobId: JobId)
 
 object PublishResponse {
   implicit val json = Json.format[PublishResponse]
 }
 
-case class TilesetStatus(id: TilesetId,
-                         queued: Int,
-                         processing: Int,
-                         success: Int,
-                         failed: Int,
-                         last_completed_job: String)
+case class JobStatusResponse(id: JobId, stage: JobStatus, tilesetId: TilesetId)
+
+object JobStatusResponse {
+  implicit val json = Json.format[JobStatusResponse]
+}
+
+case class TilesetStatus(
+  id: TilesetId,
+  status: JobStatus,
+  latest_job: JobId
+)
 
 object TilesetStatus {
   implicit val json = Json.format[TilesetStatus]
@@ -178,7 +207,7 @@ object VisibilityLayout {
 }
 
 case class ImageLayout(`icon-image`: IconName, `icon-offset`: Option[Seq[Double]], visibility: Option[String] = None)
-    extends LayoutSpec
+  extends LayoutSpec
 object ImageLayout {
   implicit val json = Json.format[ImageLayout]
 }
@@ -224,46 +253,70 @@ object MultiFilter {
       FilterSpec.writer.writes(fs)
     })
   }
+
 }
 
-case class Paint(`circle-color`: Option[String] = None,
-                 `fill-color`: Option[String] = None,
-                 `fill-opacity`: Option[Double] = None,
-                 `line-color`: Option[String] = None)
+case class Paint(
+  `circle-color`: Option[String] = None,
+  `fill-color`: Option[String] = None,
+  `fill-opacity`: Option[Double] = None,
+  `line-color`: Option[String] = None
+)
 object Paint {
   implicit val json = Json.format[Paint]
 }
 
-case class LayerSpec(id: LayerId,
-                     `type`: String,
-                     layout: LayoutSpec,
-                     source: SourceId,
-                     `source-layer`: SourceLayerId,
-                     filter: Option[FilterLike] = None,
-                     paint: Option[Paint] = None,
-                     minzoom: Option[Double] = None)
+case class LayerStyling(
+  `type`: String,
+  layout: LayoutSpec,
+  source: SourceId,
+  filter: Option[FilterLike] = None,
+  paint: Option[Paint] = None,
+  minzoom: Option[Double] = None,
+  layerIdOverride: Option[LayerId] = None
+) {
+  def toLayerSpec(layer: LayerId, sourceLayer: SourceLayerId) =
+    LayerSpec(layerIdOverride.getOrElse(layer), `type`, layout, source, sourceLayer, filter, paint, minzoom)
+}
+
+case class LayerSpec(
+  id: LayerId,
+  `type`: String,
+  layout: LayoutSpec,
+  source: SourceId,
+  `source-layer`: SourceLayerId,
+  filter: Option[FilterLike] = None,
+  paint: Option[Paint] = None,
+  minzoom: Option[Double] = None
+)
+
 object LayerSpec {
   implicit val json: OWrites[LayerSpec] = Json.writes[LayerSpec]
 }
 
-case class UpdateStyle(version: Int,
-                       name: String,
-                       metadata: Option[JsObject],
-                       sources: Option[Map[String, StyleSource]],
-                       sprite: Option[String],
-                       glyphs: Option[String],
-                       layers: Option[Seq[JsObject]]) {
-  def updated(newLayers: Seq[LayerSpec]): UpdateStyle = {
+case class UpdateStyle(
+  version: Int,
+  name: String,
+  metadata: Option[JsObject],
+  sources: Option[Map[String, StyleSource]],
+  sprite: Option[String],
+  glyphs: Option[String],
+  layers: Option[Seq[JsObject]],
+  owner: Username,
+  draft: Boolean
+) {
+  def withLayers(newLayers: Seq[LayerSpec]): UpdateStyle = {
     val asJson = newLayers.map { l =>
       Json.toJsObject(l)
     }
     copy(
-      layers = Option(layers.getOrElse(Nil).filterNot(l => newLayers.exists(_.id == (l \ "id").as[LayerId])) ++ asJson))
+      layers = Option(layers.getOrElse(Nil).filterNot(l => newLayers.exists(_.id == (l \ "id").as[LayerId])) ++ asJson)
+    )
   }
 
   def withoutLayer(id: LayerId) = copy(layers = layers.map(_.filterNot(obj => (obj \ "id").as[LayerId] == id)))
 
-  def updated(source: SourceId, tileset: TilesetId): UpdateStyle = {
+  def withSource(source: SourceId, tileset: TilesetId): UpdateStyle = {
     val styleSource = StyleSource.vector(s"mapbox://$tileset")
     copy(sources = Option(sources.getOrElse(Map.empty).updated(source.value, styleSource)))
   }

@@ -1,9 +1,5 @@
-resolvers += ivyResolver("malliina bintray sbt", url("https://dl.bintray.com/malliina/sbt-plugins/"))
-
-def ivyResolver(name: String, repoUrl: sbt.URL) =
-  Resolver.url(name, repoUrl)(Resolver.ivyStylePatterns)
-
 Seq(
-  "com.malliina" %% "sbt-utils-maven" % "0.14.2",
-  "org.scalameta" % "sbt-scalafmt" % "2.0.4"
+  "com.malliina" %% "sbt-utils-maven" % "0.15.7",
+  "ch.epfl.scala" % "sbt-bloop" % "1.3.4",
+  "org.scalameta" % "sbt-scalafmt" % "2.3.0"
 ) map addSbtPlugin
