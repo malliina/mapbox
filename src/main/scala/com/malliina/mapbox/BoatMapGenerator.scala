@@ -1,44 +1,18 @@
 package com.malliina.mapbox
 
-import java.nio.file.Path
-
 import com.malliina.http.{FullUrl, ResponseException}
 import com.malliina.mapbox.BoatMapGenerator._
-import com.malliina.mapbox.BoatStyle._
-import org.apache.commons.io.FilenameUtils
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
 
-trait GeoTask {
-  def url: FullUrl
-  def parts: Int
-}
-
-/**
-  * @param name name of shape asset to download; also the default layer ID
-  * @param url shape zip URL
-  * @param parts split factor
-  * @param styling layer styles
-  */
-case class UrlTask(name: String, url: FullUrl, parts: Int, styling: Seq[LayerStyling]) extends GeoTask
-
-case class SourceLayerFile(sourceLayerId: SourceLayerId, file: Path)
-
-object SourceLayerFile {
-  def apply(file: Path): SourceLayerFile = SourceLayerFile(
-    SourceLayerId(FilenameUtils.removeExtension(file.getFileName.toString)),
-    file
-  )
-}
-
 object BoatMapGenerator {
   private val log = LoggerFactory.getLogger(getClass)
 
-  def apply(mapbox: MapboxClient = MapboxClient.fromConf()): BoatMapGenerator =
-    new BoatMapGenerator(mapbox, GeoUtils(mapbox.http))
+  def apply(source: SourceId = SourceId.random(), mapbox: MapboxClient = MapboxClient.fromConf()): BoatMapGenerator =
+    new BoatMapGenerator(source, mapbox, GeoUtils(mapbox.http))
 
-  object urls {
+  class Urls(src: SourceId) extends BoatStyle(src) {
     val fairwayAreas = shapeUrl("vaylaalueet")(
       vaylaAlueet
     )
@@ -62,6 +36,10 @@ object BoatMapGenerator {
       sectorLight,
       noWaves
     )
+    val images = marks.styling.map(_.layout).collect { case ImageLayout(name, _, _) => name }
+    val imageFiles = images.map { i =>
+      ImageFile.orFail(i)
+    }
     val limitAreas = shapeUrl("rajoitusalue_a")(
       limitArea
     )
@@ -76,9 +54,11 @@ object BoatMapGenerator {
     val depthPoints = shapeUrl("syvyyspiste_p", restricted = true, parts = 4)(
       depthPointLayers
     )
-    val all = Seq(fairwayAreas, fairways, marks, limitAreas, leadingBeacons, depthAreas, depthLines, depthPoints)
-    val allTest = Seq(fairways)
-    //    val demo = Seq(marks)
+    // https://docs.mapbox.com/api/maps/#styles
+    // Layers will be drawn in the order of this sequence.
+//    val all = Seq(fairwayAreas, fairways, limitAreas, leadingBeacons, depthLines, depthPoints, marks)
+    val all = Seq(fairways, fairwayAreas, leadingBeacons, depthAreas, marks, depthPoints, limitAreas)
+    val allTest = Seq(fairwayAreas, fairways, limitAreas)
   }
 
   private def shapeUrl(name: String, restricted: Boolean = false, parts: Int = 1)(styling: LayerStyling*): UrlTask = {
@@ -91,10 +71,10 @@ object BoatMapGenerator {
   }
 }
 
-class BoatMapGenerator(val mapbox: MapboxClient, geo: GeoUtils) {
+class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils) {
   import mapbox.http.exec
 
-  val urls = BoatMapGenerator.urls
+  val urls = new Urls(source)
 
   /** Adds nautical charts of Finnish waters to the provided Mapbox `style`.
     *
@@ -107,12 +87,13 @@ class BoatMapGenerator(val mapbox: MapboxClient, geo: GeoUtils) {
     */
   def generate(target: StyleId): Future[TilesetId] = {
     val attempt = for {
-      styledRecipes <- recipes()
+      _ <- installImages(urls.imageFiles, target)
+      styledRecipes <- recipes(urls.all)
       recipe = Recipe.merge(styledRecipes.map(_.recipe))
       tileset <- mapbox.createTileset(recipe)
       _ <- mapbox.updateRecipe(tileset, recipe)
       _ <- mapbox.publishAndAwait(tileset)
-      _ <- mapbox.installSourceAndLayers(target, tileset, BoatStyle.src, styledRecipes.flatMap(_.style))
+      _ <- mapbox.installSourceAndLayers(target, tileset, source, styledRecipes.flatMap(_.style))
     } yield tileset
     attempt.recoverWith {
       case re: ResponseException =>
@@ -122,18 +103,27 @@ class BoatMapGenerator(val mapbox: MapboxClient, geo: GeoUtils) {
     }
   }
 
-  def recipes(): Future[Seq[StyledRecipe]] =
+  private def installImages(images: Seq[ImageFile], to: StyleId) = Future.traverse(images) { image =>
+    mapbox.addImage(image.image, image.file, to)
+  }
+
+  private def recipes(data: Seq[UrlTask] = urls.all): Future[Seq[StyledRecipe]] =
     Concurrent
-      .traverseSlowly(urls.allTest, parallelism = 1) { task =>
+      .traverseSlowly(data, parallelism = 1) { task =>
         shapeToRecipe(task)
       }
 
-  def shapeToRecipe(task: UrlTask): Future[StyledRecipe] =
+  private def shapeToRecipe(task: UrlTask): Future[StyledRecipe] =
     for {
       unzipped <- geo.shapeToGeoJson(task)
       layerFiles = unzipped.map(file => SourceLayerFile(file))
-      styleSpecs = layerFiles.flatMap(slf => task.styling.map(s => s.toLayerSpec(LayerId(task.name), slf.sourceLayerId))
-      )
       recipe <- mapbox.makeRecipe(layerFiles)
-    } yield StyledRecipe(recipe, styleSpecs)
+    } yield {
+      val styleSpecs = layerFiles.flatMap { slf =>
+        task.styling.map { s =>
+          s.toLayerSpec(LayerId(slf.sourceLayerId.value), slf.sourceLayerId)
+        }
+      }
+      StyledRecipe(recipe, styleSpecs)
+    }
 }

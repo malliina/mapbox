@@ -10,5 +10,5 @@ import scala.concurrent.{Await, Future}
 class BaseSuite extends FunSuite with BeforeAndAfterAll {
   val userHome = Paths.get(sys.props("user.home"))
 
-  def await[T](f: Future[T]): T = Await.result(f, 3600.seconds)
+  def await[T](f: Future[T]): T = Await.result(f, 7200.seconds)
 }

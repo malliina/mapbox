@@ -1,6 +1,10 @@
-name: Build and Test
+name: Generate map
 
-on: push
+# Generates the map every night at 03:17. Uses external services.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
 
 jobs:
   build:
@@ -21,3 +25,5 @@ jobs:
           sudo dpkg -i sbt-${SBT_VERSION}.deb
       - name: Run tests
         run: sbt test:compile
+#      - name: Generate map
+#        run: sbt testOnly com.malliina.mapbox.BoatMapGeneratorTests

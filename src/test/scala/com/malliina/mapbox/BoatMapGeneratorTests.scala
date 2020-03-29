@@ -2,26 +2,22 @@ package com.malliina.mapbox
 
 class BoatMapGeneratorTests extends BaseSuite {
   val client = BoatMapGenerator()
-  val tileset = TilesetId("malliina.klrhwc")
 
   ignore("create map") {
-    val tileset = await(client.generate(StyleId("ck8csi4ur1pcc1irzpxgc4pb7")))
+    val tileset = await(client.generate(StyleId("ck8dk66e31bre1ik9hw3f85sg")))
     println(s"Generated $tileset.")
   }
 
-  test("compare  layers") {
-    val official = StyleId("cjgny1fjc008p2so90sbz8nbv")
-    val wip = StyleId("ck8csi4ur1pcc1irzpxgc4pb7")
+  ignore("compare  layers") {
+    val good = StyleId("ck8d5q2h02j0r1iqltul99unj")
+    val wip = StyleId("ck8devqu81col1jmvr1ltxhxm")
+    val bad = StyleId("ck8d9h3vn2mrn1imyk025ya8v")
     val mapbox = client.mapbox
     def layers(id: StyleId) =
-      await(mapbox.styleTyped(id)).layers.getOrElse(Nil).filter(obj => (obj \ "id").as[String].startsWith("vaylat"))
+      await(mapbox.styleTyped(id)).layers.getOrElse(Nil).filter(obj => (obj \ "id").as[String].startsWith("nav"))
     println(layers(wip))
-    println(layers(official))
-  }
-
-  ignore("recipes") {
-    val r = await(client.recipes())
-    println(s"Generated recipes $r.")
+    println(layers(good))
+    println(layers(bad))
   }
 
   override protected def afterAll(): Unit = {

@@ -3,7 +3,6 @@ package com.malliina.mapbox
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 
-import com.malliina.mapbox.BoatStyle._
 import org.apache.commons.io.FilenameUtils
 import play.api.libs.json.{Json, Writes}
 
@@ -14,11 +13,6 @@ class StyleBuilderTests extends BaseSuite {
   val client = MapboxClient.fromConf()
   val playground = StyleId("ck0slgajf056s1cm68wcy5z7w")
   val tileset = TilesetId("malliina.klrhwc")
-
-  ignore("update src") {
-    val ok = await(client.updateSource(src, tileset, playground))
-    out(ok)
-  }
 
   ignore("print") {
     val json = await(client.style(playground))
@@ -58,7 +52,7 @@ class StyleBuilderTests extends BaseSuite {
   def publishTileset(names: Seq[String]): TilesetId = {
     val recipe = makeRecipeFromNames(names)
     val tilesetName = TilesetName.random()
-    val tilesetId = TilesetId.random(client.username, tilesetName)
+    val tilesetId = TilesetId.apply(client.username, tilesetName)
     await(client.createTileset(tilesetId, TilesetSpec(tilesetName, recipe)))
     val r = await(client.startPublishJob(tilesetId))
     println(r)

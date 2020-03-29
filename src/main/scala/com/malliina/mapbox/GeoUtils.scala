@@ -95,7 +95,8 @@ class GeoUtils(val http: OkClient) {
     }
     (0 until splitFactor).map { i =>
       val name = FilenameUtils.removeExtension(shapeFile.getFileName.toString)
-      val fileOut = parent.resolve(s"boat-$name$i.json")
+      val prefix = Utils.randomString(3)
+      val fileOut = parent.resolve(s"$prefix-$name$i.json")
       writer.writeFeatureCollection(transformedCollections.head(i), fileOut.toFile)
       fileOut
     }.toList

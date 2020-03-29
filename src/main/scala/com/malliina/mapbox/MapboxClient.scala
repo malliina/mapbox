@@ -68,7 +68,7 @@ class MapboxClient(token: AccessToken) {
       .traverseSlowly(geoJsons, parallelism = 1) { file =>
         val name = FilenameUtils.removeExtension(file.file.getFileName.toString)
         createTilesetSource(TilesetSourceId(name), file.file).map { response =>
-          log.info(s"Created tileset source '${response.id}' from '$file'.")
+          log.info(s"Created tileset source '${response.id}' from '${file.file}'.")
           file.sourceLayerId -> LayerObject(response.id)
         }
       }
@@ -163,7 +163,7 @@ class MapboxClient(token: AccessToken) {
 
   def createTileset(recipe: Recipe): Future[TilesetId] = {
     val tilesetName = TilesetName.random()
-    val tilesetId = TilesetId.random(username, tilesetName)
+    val tilesetId = TilesetId.apply(username, tilesetName)
     createTileset(tilesetId, TilesetSpec(tilesetName, recipe)).map { _ =>
       log.debug(s"Created tileset '$tilesetId' with name '$tilesetName'.")
       tilesetId
@@ -239,7 +239,10 @@ class MapboxClient(token: AccessToken) {
   /** Images used in a style must be added to its sprite.
     */
   def addImage(icon: IconName, svg: Path, to: StyleId) =
-    put[JsValue](apiUrl(s"/styles/v1/$username/$to/sprite/$icon"), RequestBody.create(svg.toFile, svgXml))
+    put[JsValue](apiUrl(s"/styles/v1/$username/$to/sprite/$icon"), RequestBody.create(svg.toFile, svgXml)).map { r =>
+      log.info(s"Added icon '$icon' from '$svg' to style '$to'.")
+      r
+    }
 
   def get[R: Reads](path: String) = http.getAs[R](apiUrl(path))
 

@@ -27,12 +27,46 @@ class MapboxClientTests extends BaseSuite {
     //    Files.write(Paths.get("dynamic.json"), bytes)
   }
 
-  test("get style") {
-    val styleId = StyleId("ck8c7vg9g16to1ippuj3j7gqt")
-//    val styleId = StyleId("ck8c8hro301921ik9c5eu5xbv")
+  ignore("get style") {
+//    val styleId = StyleId("ck8d9h3vn2mrn1imyk025ya8v")
+    val styleId = StyleId("ck8dijbzj0kgh1iqginjo8okm")
     val s = await(client.style(styleId))
     //    println(Json.prettyPrint(s))
-    write(s, s"style-$styleId.json")
+    write(s, s"late-$styleId.json")
+  }
+
+  ignore("update") {
+    val wip = StyleId("ck8d9h3vn2mrn1imyk025ya8v")
+    val op = client.updateLayer(
+      wip,
+      Seq(
+        LayerSpec(
+          LayerId("nav-rajoitusalue_a0"),
+          "fill",
+          EmptyLayout,
+          SourceId("ytcgew"),
+          SourceLayerId("nav-rajoitusalue_a0"),
+          paint = Option(Paint(`fill-color` = Option("hsl(321, 96%, 56%)"), `fill-opacity` = Option(0.01)))
+        ),
+        LayerSpec(
+          LayerId("nav-vaylaalueet0"),
+          "fill",
+          EmptyLayout,
+          SourceId("ytcgew"),
+          SourceLayerId("nav-vaylaalueet0"),
+          paint = Option(Paint(`fill-color` = Option("hsl(118, 96%, 37%)"), `fill-opacity` = Option(0.02)))
+        )
+//        LayerSpec(
+//          LayerId("nav-syvyysalue_a0"),
+//          "fill",
+//          EmptyLayout,
+//          SourceId("ytcgew"),
+//          SourceLayerId("nav-syvyysalue_a0"),
+//          paint = Option(Paint(`fill-color` = Option("#000000"), `fill-opacity` = Option(0.01)))
+//        )
+      )
+    )
+    write(op, s"updated-$wip.json")
   }
 
   ignore("get sprite") {
@@ -104,7 +138,7 @@ class MapboxClientTests extends BaseSuite {
     val sourceLayer = SourceLayerId("custom")
     val r = await(
       client.createTileset(
-        TilesetId.random(client.username, name),
+        TilesetId.apply(client.username, name),
         TilesetSpec(name, Recipe(Map(sourceLayer -> LayerObject(src))))
       )
     )
@@ -208,16 +242,6 @@ class MapboxClientTests extends BaseSuite {
     val update = us.copy(sources = Option(Map("composite" -> StyleSource.vector(srcUrl))))
     val json = await(client.updateStyle(style, update))
     println(json)
-  }
-
-  ignore("inject") {
-    val style = dynoStyle
-    val us = await(client.styleTyped(style))
-    val tileset = TilesetId("malliina.klrhwc")
-    val update = us.withSource(BoatStyle.src, tileset)
-    val json = await(client.updateStyle(style, update))
-    println(json)
-    write(json, "dyno-updated-more.json")
   }
 
   def write(f: Future[JsValue], to: String) = {

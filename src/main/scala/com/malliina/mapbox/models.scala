@@ -1,10 +1,12 @@
 package com.malliina.mapbox
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, NoSuchFileException, Path, Paths}
 
+import com.malliina.http.FullUrl
 import com.malliina.mapbox.JobStatus.{Failed, Processing, Queued, Success}
 import com.malliina.values.{StringCompanion, StringEnumCompanion, Username, WrappedString}
+import org.apache.commons.io.FilenameUtils
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 
@@ -20,7 +22,9 @@ case class LayerId(value: String) extends WrappedString
 object LayerId extends StringCompanion[LayerId]
 
 case class SourceId(value: String) extends WrappedString
-object SourceId extends StringCompanion[SourceId]
+object SourceId extends StringCompanion[SourceId] {
+  def random() = apply(Utils.randomString(6))
+}
 
 /** Totally distinct from LayerId.
   *
@@ -31,7 +35,7 @@ object SourceLayerId extends StringCompanion[SourceLayerId]
 
 case class TilesetId(value: String) extends WrappedString
 object TilesetId extends StringCompanion[TilesetId] {
-  def random(username: Username, name: TilesetName) = apply(s"$username.$name")
+  def apply(username: Username, name: TilesetName): TilesetId = apply(s"$username.$name")
 }
 
 case class TilesetName(value: String) extends WrappedString
@@ -260,7 +264,8 @@ case class Paint(
   `circle-color`: Option[String] = None,
   `fill-color`: Option[String] = None,
   `fill-opacity`: Option[Double] = None,
-  `line-color`: Option[String] = None
+  `line-color`: Option[String] = None,
+  `line-width`: Option[Int] = None
 )
 object Paint {
   implicit val json = Json.format[Paint]
@@ -324,4 +329,37 @@ case class UpdateStyle(
 
 object UpdateStyle {
   implicit val json = Json.format[UpdateStyle]
+}
+
+trait GeoTask {
+  def url: FullUrl
+  def parts: Int
+}
+
+/**
+  * @param name name of shape asset to download; also the default layer ID
+  * @param url shape zip URL
+  * @param parts split factor
+  * @param styling layer styles
+  */
+case class UrlTask(name: String, url: FullUrl, parts: Int, styling: Seq[LayerStyling]) extends GeoTask
+
+case class SourceLayerFile(sourceLayerId: SourceLayerId, file: Path)
+
+object SourceLayerFile {
+  def apply(file: Path): SourceLayerFile = SourceLayerFile(
+    SourceLayerId(FilenameUtils.removeExtension(file.getFileName.toString)),
+    file
+  )
+}
+
+case class ImageFile(image: IconName, file: Path)
+
+object ImageFile {
+  def apply(icon: IconName): ImageFile = ImageFile(icon, Paths.get(s"data/images/$icon.svg"))
+
+  def orFail(icon: IconName): ImageFile = {
+    val candidate = apply(icon)
+    if (Files.exists(candidate.file)) candidate else throw new NoSuchFileException(candidate.file.toString)
+  }
 }

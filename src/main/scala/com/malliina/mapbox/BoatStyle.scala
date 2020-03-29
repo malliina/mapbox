@@ -1,23 +1,6 @@
 package com.malliina.mapbox
 
-object BoatStyle extends BoatStyle(SourceId("mle7"))
-
 class BoatStyle(val src: SourceId) {
-  val icons = Seq(
-    "cardinal-north-30-opt",
-    "cardinal-east-30-opt",
-    "cardinal-south-30-opt",
-    "cardinal-west-30-opt",
-    "lateral-red-30-opt",
-    "lateral-green-30-opt",
-    "radar-15",
-    "leading-beacon-15",
-    "no-waves-15",
-    "lighthouse-30-nolight",
-    "lighthouse-30-yellow",
-    "limit-10-30-normal",
-    "lighthouse-15"
-  )
   val lateralRed = markLayer("lateral-red", "lateral-red-30-opt", 1)
   val lateralGreen = markLayer("lateral-green", "lateral-green-30-opt", 2)
 
@@ -66,19 +49,19 @@ class BoatStyle(val src: SourceId) {
     "line",
     VisibilityLayout(Visibility.Visible),
     src,
-    paint = Option(Paint(`line-color` = Option("hsl(122, 89%, 52%)")))
+    paint = Option(Paint(`line-color` = Option("hsl(122, 89%, 52%)"), `line-width` = Option(1)))
   )
   val taululinja = LayerStyling(
     "line",
     VisibilityLayout(Visibility.Visible),
     src,
-    paint = Option(Paint(`line-color` = Option("hsl(0, 84%, 76%)")))
+    paint = Option(Paint(`line-color` = Option("hsl(0, 84%, 76%)"), `line-width` = Option(1)))
   )
   val limitArea = LayerStyling(
     "fill",
     EmptyLayout,
     src,
-    paint = Option(Paint(`fill-color` = Option("hsla(321, 96%, 56%, 0.05)")))
+    paint = Option(Paint(`fill-color` = Option("hsl(321, 96%, 56%)"), `fill-opacity` = Option(0.05)))
   )
   val depthPointLayers = LayerStyling(
     "symbol",
@@ -90,38 +73,15 @@ class BoatStyle(val src: SourceId) {
     "fill",
     VisibilityLayout(Visibility.Visible),
     src,
-    paint = Option(Paint(`fill-color` = Option("hsl(0, 95%, 16%)"), `fill-opacity` = Option(0.1)))
+    paint = Option(Paint(`fill-color` = Option("hsl(0, 95%, 16%)"), `fill-opacity` = Option(0.01)))
   )
 
   val depthAreaLayers = LayerStyling(
     "fill",
     VisibilityLayout(Visibility.Visible),
     src,
-    paint = Option(Paint(`fill-color` = Option("#000000"), `fill-opacity` = Option(0.1)))
+    paint = Option(Paint(`fill-opacity` = Option(0.1)))
   )
-  val all = Seq(
-    depthAreaLayers,
-    depthPointLayers,
-    vaylaAlueet,
-    limitArea,
-    vaylat,
-    taululinja,
-    lateralRed,
-    lateralGreen,
-    cardinalNorth,
-    cardinalSouth,
-    cardinalWest,
-    cardinalEast,
-    radar,
-    leadingBeacon,
-    lighthouseNoLight,
-    lighthouseYellow,
-    sectorLight,
-    noWaves,
-    safeWaters,
-    speedLimit
-  )
-  val allTest = Seq(vaylat)
 
   def markLayer(id: String, icon: String, navFilterValue: Int) =
     simpleSymbolLayer(id, icon, "NAVL_TYYP", navFilterValue, -15)
