@@ -15,7 +15,6 @@ class BoatMapGeneratorTests extends BaseSuite {
     val prefix = s"test-$date-"
     val req = GenerateMapRequest(s"Testmap-$prefix-${Utils.randomString(6)}", Seq(client.urls.fairways), Nil, prefix)
     val map = await(client.generate(req))
-    await(mapbox.deleteTileset(map.tileset))
     val d = await(mapbox.deleteStyle(map.style))
     assert(d.code === 204)
     val ts = await(mapbox.deleteTileset(map.tileset))
