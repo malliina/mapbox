@@ -18,7 +18,7 @@ class BoatMapGeneratorTests extends BaseSuite {
     val d = await(mapbox.deleteStyle(map.style))
     assert(d.code === 204)
     val ts = await(mapbox.deleteTileset(map.tileset))
-    assert(ts.code === 204)
+    assert(ts.code === 200)
   }
 
   override protected def afterAll(): Unit = mapbox.close()
