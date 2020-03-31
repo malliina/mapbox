@@ -13,10 +13,10 @@ class MapboxClientTests extends BaseSuite {
 
   val dynoStyle = StyleId("ck0jvmrkf12q21cln11l3v5wp") // Dyno
 
-  ignore("proper") {
-    val finnishWaters = StyleId("cjgny1fjc008p2so90sbz8nbv")
+  ignore("empty template") {
+    val finnishWaters = StyleId("ck8g72lr949js1invb4ovnyhg")
     val s = await(client.style(finnishWaters))
-    write(s, "finnish-waters.json")
+    write(s, "empty-streets-style.json")
   }
 
   ignore("add icon to style") {

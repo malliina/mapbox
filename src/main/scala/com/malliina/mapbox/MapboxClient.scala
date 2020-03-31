@@ -24,10 +24,10 @@ object MapboxClient {
 
   def apply(token: AccessToken) = new MapboxClient(token)
 
-  def fromConf() = {
+  def fromConf(): MapboxClient = {
     val conf = ConfigFactory.parseFile(confFile.toFile).resolve()
-    val token = AccessToken(conf.getString("mapbox.studio.token"))
-    apply(token)
+    val tokenStr = sys.env.getOrElse("MAPBOX_SECRET_TOKEN", conf.getString("mapbox.studio.token"))
+    apply(AccessToken(tokenStr))
   }
 
   def mapboxHttpClient(): OkClient = OkClient(
@@ -38,7 +38,6 @@ object MapboxClient {
       .writeTimeout(1800, TimeUnit.SECONDS)
       .build()
   )
-
 }
 
 class MapboxClient(token: AccessToken, val username: Username = Username("malliina")) {
@@ -59,9 +58,15 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
   def styleTyped(id: StyleId) = get[UpdateStyle](s"/styles/v1/$username/$id")
   def styles = get[JsValue](s"/styles/v1/$username")
   def stylesTyped = get[Seq[Style]](s"/styles/v1/$username")
-  def createStyle(style: JsValue) = http.postJsonAs[JsValue](apiUrl(s"/styles/v1/$username"), style)
+  def createStyleTyped(style: UpdateStyle): Future[FullStyle] = createStyle(Json.toJson(style))
+  def createStyle(style: JsValue) = http.postJsonAs[FullStyle](apiUrl(s"/styles/v1/$username"), style).map { r =>
+    log.info(s"Created style '${r.id}'.")
+    r
+  }
+  def deleteStyle(id: StyleId) = deleteUrl(apiUrl(s"/styles/v1/$username/$id"))
 
   def sources = get[JsValue](s"/tilesets/v1/sources/$username")
+
   def tilesets = get[JsValue](s"/tilesets/v1/$username")
 
   def makeRecipe(geoJsons: Seq[SourceLayerFile]): Future[Recipe] =
@@ -144,11 +149,13 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
 
   def tilesetSources() = get[JsValue](s"/tilesets/v1/sources/$username")
 
-  def delete(id: TilesetSourceId) = {
-    val url = apiUrl(s"/tilesets/v1/sources/$username/$id")
+  def delete(id: TilesetSourceId) = deleteUrl(apiUrl(s"/tilesets/v1/sources/$username/$id"))
+
+  def deleteUrl(url: FullUrl) = {
     val req = new Request.Builder().url(url.url).delete().build()
     http.execute(req).map { r =>
-      log.info(s"Deleted tileset source '$id'.")
+      val noQuery = url.url.takeWhile(_ != '?')
+      log.info(s"Deleted '$noQuery'.")
       r
     }
   }
@@ -168,9 +175,9 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
     }
   }
 
-  def createTileset(recipe: Recipe): Future[TilesetId] = {
-    val tilesetName = TilesetName.random()
-    val tilesetId = TilesetId.apply(username, tilesetName)
+  def createTileset(recipe: Recipe, assetPrefix: String): Future[TilesetId] = {
+    val tilesetName = TilesetName.random(assetPrefix)
+    val tilesetId = TilesetId(username, tilesetName)
     createTileset(tilesetId, TilesetSpec(tilesetName, recipe)).map { _ =>
       log.debug(s"Created tileset '$tilesetId' with name '$tilesetName'.")
       tilesetId
@@ -195,6 +202,8 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
         r
       }
   }
+
+  def deleteTileset(id: TilesetId): Future[OkHttpResponse] = deleteUrl(apiUrl(s"/tilesets/v1/$id"))
 
   def recipe(id: TilesetId) = get[RecipeResponse](s"/tilesets/v1/$id/recipe")
 

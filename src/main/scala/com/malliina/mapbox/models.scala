@@ -10,6 +10,10 @@ import org.apache.commons.io.FilenameUtils
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 
+abstract class BoatCompanion[T <: WrappedString] extends StringCompanion[T] {
+  def random(prefix: String = ""): T = apply(s"$prefix${Utils.randomString(6)}")
+}
+
 /** Name of an icon in a sprite of a style.
   */
 case class IconName(value: String) extends WrappedString
@@ -22,9 +26,7 @@ case class LayerId(value: String) extends WrappedString
 object LayerId extends StringCompanion[LayerId]
 
 case class SourceId(value: String) extends WrappedString
-object SourceId extends StringCompanion[SourceId] {
-  def random() = apply(Utils.randomString(6))
-}
+object SourceId extends BoatCompanion[SourceId]
 
 /** Totally distinct from LayerId.
   *
@@ -39,14 +41,10 @@ object TilesetId extends StringCompanion[TilesetId] {
 }
 
 case class TilesetName(value: String) extends WrappedString
-object TilesetName extends StringCompanion[TilesetName] {
-  def random(): TilesetName = apply(Utils.randomString(6))
-}
+object TilesetName extends BoatCompanion[TilesetName]
 
 case class TilesetSourceId(value: String) extends WrappedString
-object TilesetSourceId extends StringCompanion[TilesetSourceId] {
-  def random(): TilesetSourceId = apply(Utils.randomString(6))
-}
+object TilesetSourceId extends BoatCompanion[TilesetSourceId]
 
 case class JobId(value: String) extends WrappedString
 object JobId extends StringCompanion[JobId]
@@ -68,6 +66,10 @@ object JobStatus extends StringEnumCompanion[JobStatus] {
   case object Success extends JobStatus("success")
   case object Failed extends JobStatus("failed")
 }
+
+case class GeneratedMap(style: StyleId, tileset: TilesetId)
+
+case class GenerateMapRequest(name: String, urls: Seq[UrlTask], images: Seq[ImageFile], assetPrefix: String)
 
 case class LayerObject(
   source: TilesetSourceId,
@@ -297,6 +299,24 @@ case class LayerSpec(
 
 object LayerSpec {
   implicit val json: OWrites[LayerSpec] = Json.writes[LayerSpec]
+}
+
+case class FullStyle(
+  id: StyleId,
+  version: Int,
+  name: String,
+  metadata: Option[JsObject],
+  sources: Option[Map[String, StyleSource]],
+  sprite: Option[String],
+  glyphs: Option[String],
+  layers: Option[Seq[JsObject]],
+  owner: Username,
+  modified: String,
+  created: String
+)
+
+object FullStyle {
+  implicit val json = Json.format[FullStyle]
 }
 
 case class UpdateStyle(

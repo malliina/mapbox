@@ -6,11 +6,10 @@ import java.text.Normalizer
 import java.util.zip.ZipFile
 
 import org.apache.commons.io.IOUtils
-
-import scala.jdk.CollectionConverters.IteratorHasAsScala
 import org.apache.commons.text.{CharacterPredicates, RandomStringGenerator}
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.io.Source
+import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 object Utils {
   private val generator = new RandomStringGenerator.Builder()
@@ -56,4 +55,7 @@ object Utils {
         .toList
     } finally zip.close()
   }
+
+  def resourceAsString(file: String) =
+    Source.fromResource(s"com/malliina/mapbox/$file", getClass.getClassLoader).mkString
 }

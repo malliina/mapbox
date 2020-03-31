@@ -3,6 +3,7 @@ package com.malliina.mapbox
 import com.malliina.http.{FullUrl, ResponseException}
 import com.malliina.mapbox.BoatMapGenerator._
 import org.slf4j.LoggerFactory
+import play.api.libs.json.Json
 
 import scala.concurrent.Future
 
@@ -74,6 +75,22 @@ class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils
 
   val urls = new Urls(source)
 
+  def generate(name: String): Future[GeneratedMap] =
+    generate(GenerateMapRequest(name, urls.all, urls.imageFiles, "boat-"))
+
+  /** Generates a map with the content in `request`.
+    *
+    * @return style ID and tileset ID
+    */
+  def generate(request: GenerateMapRequest): Future[GeneratedMap] = {
+    val template = Utils.resourceAsString("empty-streets-style.json")
+    val payload = Json.parse(template).as[UpdateStyle].copy(name = request.name)
+    for {
+      style <- mapbox.createStyleTyped(payload)
+      tileset <- installTo(style.id, request)
+    } yield GeneratedMap(style.id, tileset)
+  }
+
   /** Adds nautical charts of Finnish waters to the provided Mapbox `style`.
     *
     * Uses data from Finnish Transport Agency.
@@ -83,12 +100,12 @@ class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils
     * @param target style to apply the nautical charts to
     * @return the generated tileset ID
     */
-  def generate(target: StyleId): Future[TilesetId] = {
+  def installTo(target: StyleId, request: GenerateMapRequest): Future[TilesetId] = {
     val attempt = for {
-      _ <- installImages(urls.imageFiles, target)
-      styledRecipes <- recipes(urls.all)
+      _ <- installImages(request.images, target)
+      styledRecipes <- recipes(request.urls)
       recipe = Recipe.merge(styledRecipes.map(_.recipe))
-      tileset <- mapbox.createTileset(recipe)
+      tileset <- mapbox.createTileset(recipe, request.assetPrefix)
       _ <- mapbox.updateRecipe(tileset, recipe)
       _ <- mapbox.publishAndAwait(tileset)
       _ <- mapbox.installSourceAndLayers(target, tileset, source, styledRecipes.flatMap(_.style), draft = true)
@@ -106,7 +123,7 @@ class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils
     mapbox.addImage(image.image, image.file, to)
   }
 
-  private def recipes(data: Seq[UrlTask] = urls.all): Future[Seq[StyledRecipe]] = {
+  private def recipes(data: Seq[UrlTask]): Future[Seq[StyledRecipe]] = {
     val filePrefix = Utils.randomString(6)
     Concurrent
       .traverseSlowly(data, parallelism = 1) { task =>

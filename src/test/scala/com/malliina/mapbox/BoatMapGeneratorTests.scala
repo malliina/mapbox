@@ -1,26 +1,26 @@
 package com.malliina.mapbox
 
+import java.time.{LocalDate, ZoneId}
+
 class BoatMapGeneratorTests extends BaseSuite {
   val client = BoatMapGenerator()
+  val mapbox = client.mapbox
 
-  ignore("create map") {
-    val tileset = await(client.generate(StyleId("todo")))
-    println(s"Generated $tileset.")
+  ignore("create map from scratch") {
+    client.generate("Test map")
   }
 
-  ignore("compare  layers") {
-    val good = StyleId("ck8d5q2h02j0r1iqltul99unj")
-    val wip = StyleId("ck8devqu81col1jmvr1ltxhxm")
-    val bad = StyleId("ck8d9h3vn2mrn1imyk025ya8v")
-    val mapbox = client.mapbox
-    def layers(id: StyleId) =
-      await(mapbox.styleTyped(id)).layers.getOrElse(Nil).filter(obj => (obj \ "id").as[String].startsWith("nav"))
-    println(layers(wip))
-    println(layers(good))
-    println(layers(bad))
+  test("can generate map with styles from WFS API") {
+    val date = LocalDate.now(ZoneId.of("Europe/Helsinki"))
+    val prefix = s"test-$date-"
+    val req = GenerateMapRequest(s"Testmap-$prefix-${Utils.randomString(6)}", Seq(client.urls.fairways), Nil, prefix)
+    val map = await(client.generate(req))
+    await(mapbox.deleteTileset(map.tileset))
+    val d = await(mapbox.deleteStyle(map.style))
+    assert(d.code === 204)
+    val ts = await(mapbox.deleteTileset(map.tileset))
+    assert(ts.code === 204)
   }
 
-  override protected def afterAll(): Unit = {
-    client.mapbox.close()
-  }
+  override protected def afterAll(): Unit = mapbox.close()
 }

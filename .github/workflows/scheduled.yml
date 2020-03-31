@@ -4,7 +4,7 @@ name: Generate map
 
 on:
   schedule:
-    - cron: '17 3 * * *'
+    - cron: '17 3 * * 3' # https://crontab.guru/
 
 jobs:
   build:
@@ -25,5 +25,7 @@ jobs:
           sudo dpkg -i sbt-${SBT_VERSION}.deb
       - name: Compile tests
         run: sbt test:compile
-#      - name: Generate map
-#        run: sbt testOnly com.malliina.mapbox.BoatMapGeneratorTests
+      - name: Generate map
+        env:
+          MAPBOX_SECRET_TOKEN: ${{ secrets.MapboxSecretToken }}
+        run: sbt testOnly com.malliina.mapbox.BoatMapGeneratorTests
