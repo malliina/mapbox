@@ -21,11 +21,14 @@ import scala.jdk.CollectionConverters.MapHasAsJava
 class WFSTests extends BaseSuite {
   val log = LoggerFactory.getLogger(getClass)
   val openCapabilities = connectionParameters(
-    "https://julkinen.vayla.fi/inspirepalvelu/avoin/wfs?request=getcapabilities")
+    "https://julkinen.vayla.fi/inspirepalvelu/avoin/wfs?request=getcapabilities"
+  )
   val restrictedCapabilities = connectionParameters(
-    "https://julkinen.liikennevirasto.fi/inspirepalvelu/rajoitettu/wfs?request=getcapabilities")
+    "https://julkinen.liikennevirasto.fi/inspirepalvelu/rajoitettu/wfs?request=getcapabilities"
+  )
   // Must be shapefile, not JSON, otherwise the server times out after one minute, most likely due to the payload size
-  val depthAreasUrl = "https://julkinen.vayla.fi/inspirepalvelu/wfs?request=getfeature&typename=rajoitettu:syvyysalue_a&outputformat=shape-zip"
+  val depthAreasUrl =
+    "https://julkinen.vayla.fi/inspirepalvelu/wfs?request=getfeature&typename=rajoitettu:syvyysalue_a&outputformat=shape-zip"
 
   val depthAreas = userHome.resolve("boat/syvyysalue_a.shp")
 
@@ -45,7 +48,7 @@ class WFSTests extends BaseSuite {
     ds.getTypeNames.toList.sorted foreach println
   }
 
-  test("restricted") {
+  ignore("restricted") {
     val factory = new WFSDataStoreFactory
     val ds = factory.createDataStore(restrictedCapabilities.asJava)
     ds.getTypeNames.toList.sorted foreach println
@@ -89,49 +92,4 @@ class WFSTests extends BaseSuite {
     }
     writer.writeFeatureCollection(outCollection, Paths.get(file).toFile)
   }
-
-//  def hmm() = {
-//    import scala.jdk.CollectionConverters.MapHasAsJava
-//    val connectionParameters = Map(
-//      "WFSDataStoreFactory:GET_CAPABILITIES_URL" -> "https://julkinen.vayla.fi/inspirepalvelu/avoin/wfs?request=getcapabilities")
-//
-//    // Step 2 - connection
-//    val data = DataStoreFinder.getDataStore(connectionParameters.asJava)
-//
-//    println(data)
-//    // Step 3 - discouvery
-//    val typeNames = data.getTypeNames
-//    val typeName = typeNames(0)
-//    val schema = data.getSchema(typeName)
-//
-//    // Step 4 - target
-////    FeatureSource<SimpleFeatureType, SimpleFeature> source = data.getFeatureSource( typeName );
-//    val source = data.getFeatureSource(typeName)
-//    println(s"Metadata Bounds: ${source.getBounds}")
-//
-//    // Step 5 - query
-//    val geomName = schema.getGeometryDescriptor.getLocalName
-////    val geomName = schema.getDefaultGeometry().getLocalName();
-//    val bbox = new Envelope(-100.0, -70, 25, 40)
-//
-//    val ff = CommonFactoryFinder.getFilterFactory2(GeoTools.getDefaultHints)
-//    val polygon = JTS.toGeometry(bbox)
-//    val filter = ff.intersects(ff.property(geomName), ff.literal(polygon))
-//
-//    val query = new Query(typeName, filter, Array(geomName))
-//    //    FeatureCollection<SimpleFeatureType, SimpleFeature> features = source.getFeatures( query )
-//    val features = source.getFeatures(query)
-//
-//    val bounds = new ReferencedEnvelope()
-//    val iterator = features.features()
-//    try {
-//      while (iterator.hasNext) {
-//        val feature = iterator.next()
-//        bounds.include(feature.getBounds)
-//      }
-//      println(s"Calculated Bounds: $bounds")
-//    } finally {
-////      features.close( iterator );
-//    }
-//  }
 }

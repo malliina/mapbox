@@ -4,7 +4,7 @@ class BoatMapGeneratorTests extends BaseSuite {
   val client = BoatMapGenerator()
 
   ignore("create map") {
-    val tileset = await(client.generate(StyleId("ck8dk66e31bre1ik9hw3f85sg")))
+    val tileset = await(client.generate(StyleId("todo")))
     println(s"Generated $tileset.")
   }
 

@@ -29,15 +29,8 @@ object MapboxClient {
     val token = AccessToken(conf.getString("mapbox.studio.token"))
     apply(token)
   }
-}
 
-class MapboxClient(token: AccessToken) {
-  val username = Username("malliina")
-
-  val textPlain = MediaType.parse("text/plain")
-  val svgXml = MediaType.parse("image/svg+xml")
-
-  val http = OkClient(
+  def mapboxHttpClient(): OkClient = OkClient(
     new OkHttpClient.Builder()
       .connectionSpecs(util.Arrays.asList(ConnectionSpec.MODERN_TLS, ConnectionSpec.COMPATIBLE_TLS))
       .connectTimeout(30, TimeUnit.SECONDS)
@@ -45,6 +38,14 @@ class MapboxClient(token: AccessToken) {
       .writeTimeout(1800, TimeUnit.SECONDS)
       .build()
   )
+
+}
+
+class MapboxClient(token: AccessToken, val username: Username = Username("malliina")) {
+  val textPlain = MediaType.parse("text/plain")
+  val svgXml = MediaType.parse("image/svg+xml")
+
+  val http = MapboxClient.mapboxHttpClient()
   val geo = GeoUtils(http)
   import http.exec
 
@@ -98,11 +99,17 @@ class MapboxClient(token: AccessToken) {
     }
   }
 
-  def installSourceAndLayers(style: StyleId, tilesetId: TilesetId, sourceId: SourceId, newLayers: Seq[LayerSpec]) =
+  def installSourceAndLayers(
+    style: StyleId,
+    tilesetId: TilesetId,
+    sourceId: SourceId,
+    newLayers: Seq[LayerSpec],
+    draft: Boolean
+  ): Future[JsValue] =
     transformStyle(style) { old =>
       val json = Json.toJson(newLayers)
       log.info(s"Installing source '$sourceId' with tileset '$tilesetId' and layers '$json' to style '$style'.")
-      old.withSource(sourceId, tilesetId).withLayers(newLayers)
+      old.withSource(sourceId, tilesetId).withLayers(newLayers).copy(draft = draft)
     }
 
   def removeLayer(layer: LayerId, from: StyleId): Future[JsValue] =
@@ -201,7 +208,7 @@ class MapboxClient(token: AccessToken) {
   def tilesetJobStatus(tid: TilesetId, jid: JobId) = get[JobStatusResponse](s"/tilesets/v1/$tid/jobs/$jid")
 
   def publishAndAwait(id: TilesetId) = startPublishJob(id).flatMap { res =>
-    awaitCompletion(id, res.jobId, 15.minutes)
+    awaitCompletion(id, res.jobId, 30.minutes)
   }
 
   def awaitCompletion(tileset: TilesetId, job: JobId, timeout: FiniteDuration): Future[JobStatusResponse] = {

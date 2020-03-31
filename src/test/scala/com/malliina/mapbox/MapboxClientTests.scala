@@ -19,6 +19,14 @@ class MapboxClientTests extends BaseSuite {
     write(s, "finnish-waters.json")
   }
 
+  ignore("add icon to style") {
+    val style = StyleId("ck8epthw303kj1imowjvyiagy")
+    val iconName = "trophy-gold-path"
+    val op = client.addImage(IconName(iconName), Paths.get(s"data/images/$iconName.svg"), style)
+    val json = await(op)
+    println(json)
+  }
+
   ignore("list styles") {
     val s = await(client.stylesTyped)
 //    println(Json.prettyPrint(s))

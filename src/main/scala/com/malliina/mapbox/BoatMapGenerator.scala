@@ -13,15 +13,10 @@ object BoatMapGenerator {
     new BoatMapGenerator(source, mapbox, GeoUtils(mapbox.http))
 
   class Urls(src: SourceId) extends BoatStyle(src) {
-    val fairwayAreas = shapeUrl("vaylaalueet")(
-      vaylaAlueet
-    )
-    val fairways = shapeUrl("vaylat")(
-      vaylat
-    )
+    val fairwayAreas = shapeUrl("vaylaalueet")(vaylaAlueet)
+    val fairways = shapeUrl("vaylat")(vaylat)
     val marks = shapeUrl("turvalaitteet")(
       safeWaters,
-      speedLimit,
       kummeli,
       lateralRed,
       lateralGreen,
@@ -33,41 +28,44 @@ object BoatMapGenerator {
       leadingBeacon,
       lighthouseNoLight,
       lighthouseYellow,
-      sectorLight,
-      noWaves
+      sectorLight
     )
-    val images = marks.styling.map(_.layout).collect { case ImageLayout(name, _, _) => name }
-    val imageFiles = images.map { i =>
+    val trafficSigns = shapeUrl("vesiliikennemerkit")(
+      noWaves,
+      speedLimit
+    )
+    val layoutImages = marks.styling.map(_.layout).collect { case ImageLayout(name, _, _) => name }
+    val appImages = Seq("boat-resized-opt-30", "trophy-gold-path").map(IconName.apply)
+    val imageFiles = (layoutImages ++ appImages).map { i =>
       ImageFile.orFail(i)
     }
-    val limitAreas = shapeUrl("rajoitusalue_a")(
-      limitArea
-    )
-    val leadingBeacons = shapeUrl("taululinja")(
-      taululinja
-    )
-    val depthAreas = shapeUrl("syvyysalue_a", restricted = true, parts = 4)(
-      depthAreaLayers
-    )
+    val limitAreas = shapeUrl("rajoitusalue_a")(limitArea)
+    val leadingBeacons = shapeUrl("taululinja")(taululinja)
+    val depthAreas = shapeUrl("syvyysalue_a", restricted = true, parts = 4)(depthAreaLayers)
+    val areaLimits = shapeUrl("aluemeri_raja_a")(aluemeriRaja)
     // No styling? Not used?
-    val depthLines = shapeUrl("syvyyskayra_v", restricted = true, parts = 2)()
+//    val depthLines = shapeUrl("syvyyskayra_v", restricted = true, parts = 2)()
     val depthPoints = shapeUrl("syvyyspiste_p", restricted = true, parts = 4)(
       depthPointLayers
     )
     // https://docs.mapbox.com/api/maps/#styles
     // Layers will be drawn in the order of this sequence.
-//    val all = Seq(fairwayAreas, fairways, limitAreas, leadingBeacons, depthLines, depthPoints, marks)
-    val all = Seq(fairways, fairwayAreas, leadingBeacons, depthAreas, marks, depthPoints, limitAreas)
+    val all =
+      Seq(fairways, fairwayAreas, leadingBeacons, depthAreas, areaLimits, limitAreas, depthPoints, marks, trafficSigns)
     val allTest = Seq(fairwayAreas, fairways, limitAreas)
   }
 
   private def shapeUrl(name: String, restricted: Boolean = false, parts: Int = 1)(styling: LayerStyling*): UrlTask = {
+    val url = shapeZipUrl(name, restricted)
+    UrlTask(name, url, parts, styling)
+  }
+
+  def shapeZipUrl(name: String, restricted: Boolean): FullUrl = {
     val modifier = if (restricted) "rajoitettu" else "avoin"
-    val url = FullUrl.https(
+    FullUrl.https(
       "julkinen.vayla.fi",
       s"/inspirepalvelu/wfs?request=getfeature&typename=$modifier:$name&outputformat=shape-zip"
     )
-    UrlTask(name, url, parts, styling)
   }
 }
 
@@ -93,7 +91,8 @@ class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils
       tileset <- mapbox.createTileset(recipe)
       _ <- mapbox.updateRecipe(tileset, recipe)
       _ <- mapbox.publishAndAwait(tileset)
-      _ <- mapbox.installSourceAndLayers(target, tileset, source, styledRecipes.flatMap(_.style))
+      _ <- mapbox.installSourceAndLayers(target, tileset, source, styledRecipes.flatMap(_.style), draft = true)
+      _ <- mapbox.installSourceAndLayers(target, tileset, source, styledRecipes.flatMap(_.style), draft = false)
     } yield tileset
     attempt.recoverWith {
       case re: ResponseException =>
@@ -107,15 +106,17 @@ class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils
     mapbox.addImage(image.image, image.file, to)
   }
 
-  private def recipes(data: Seq[UrlTask] = urls.all): Future[Seq[StyledRecipe]] =
+  private def recipes(data: Seq[UrlTask] = urls.all): Future[Seq[StyledRecipe]] = {
+    val filePrefix = Utils.randomString(6)
     Concurrent
       .traverseSlowly(data, parallelism = 1) { task =>
-        shapeToRecipe(task)
+        shapeToRecipe(task, filePrefix)
       }
+  }
 
-  private def shapeToRecipe(task: UrlTask): Future[StyledRecipe] =
+  private def shapeToRecipe(task: UrlTask, filePrefix: String): Future[StyledRecipe] =
     for {
-      unzipped <- geo.shapeToGeoJson(task)
+      unzipped <- geo.shapeToGeoJson(task, filePrefix)
       layerFiles = unzipped.map(file => SourceLayerFile(file))
       recipe <- mapbox.makeRecipe(layerFiles)
     } yield {

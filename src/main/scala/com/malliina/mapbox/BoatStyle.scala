@@ -15,6 +15,12 @@ class BoatStyle(val src: SourceId) {
   val lighthouseYellow = simpleSymbolLayer("marks-merimajakka", "lighthouse-30-yellow", "TY_JNR", 1, -15)
   val sectorLight = simpleSymbolLayer("marks-sektoriloisto", "lighthouse-15", "TY_JNR", 2, 0)
   val noWaves = simpleSymbolLayer("marks-no-waves", "no-waves-15", "VLM_LAJI", 6, -7.5)
+  val speedLimit = symbolLayer(
+    "marks-speed-limit",
+    "limit-10-30-normal",
+    MultiFilter(Combinator.All, Seq(FilterSpec(Operator.Eq, "RA_ARVO", 10), FilterSpec(Operator.Eq, "VLM_LAJI", 11))),
+    0
+  )
   val safeWaters = LayerStyling(
     "circle",
     VisibilityLayout(Visibility.Visible),
@@ -32,12 +38,6 @@ class BoatStyle(val src: SourceId) {
     Option(Paint(`circle-color` = Option("hsl(0, 6%, 98%)"))),
     minzoom = Option(13),
     layerIdOverride = Option(LayerId("kummeli"))
-  )
-  val speedLimit = symbolLayer(
-    "marks-speed-limit",
-    "limit-10-30-normal",
-    MultiFilter(Combinator.All, Seq(FilterSpec(Operator.Eq, "RA_ARVO", 10), FilterSpec(Operator.Eq, "VLM_LAJI", 11))),
-    0
   )
   val vaylaAlueet = LayerStyling(
     "fill",
@@ -73,7 +73,7 @@ class BoatStyle(val src: SourceId) {
     "fill",
     VisibilityLayout(Visibility.Visible),
     src,
-    paint = Option(Paint(`fill-color` = Option("hsl(0, 95%, 16%)"), `fill-opacity` = Option(0.01)))
+    paint = Option(Paint(`fill-color` = Option("hsl(0, 95%, 16%)"), `fill-opacity` = Option(0.1)))
   )
 
   val depthAreaLayers = LayerStyling(

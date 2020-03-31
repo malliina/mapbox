@@ -1,6 +1,6 @@
 name: Generate map
 
-# Generates the map every night at 03:17. Uses external services.
+# TODO: Generates the map every night at 03:17. Uses external services.
 
 on:
   schedule:
@@ -23,7 +23,7 @@ jobs:
         run: |
           curl -L -o sbt-${SBT_VERSION}.deb https://dl.bintray.com/sbt/debian/sbt-${SBT_VERSION}.deb
           sudo dpkg -i sbt-${SBT_VERSION}.deb
-      - name: Run tests
+      - name: Compile tests
         run: sbt test:compile
 #      - name: Generate map
 #        run: sbt testOnly com.malliina.mapbox.BoatMapGeneratorTests
