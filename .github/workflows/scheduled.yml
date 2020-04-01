@@ -2,9 +2,11 @@ name: Generate map
 
 # TODO: Generates the map every night at 03:17. Uses external services.
 
-on:
-  schedule:
-    - cron: '17 3 * * 3' # https://crontab.guru/
+on: push
+
+#on:
+#  schedule:
+#    - cron: '17 3 * * 3' # https://crontab.guru/
 
 jobs:
   build:
@@ -28,4 +30,4 @@ jobs:
       - name: Generate map
         env:
           MAPBOX_SECRET_TOKEN: ${{ secrets.MapboxSecretToken }}
-        run: sbt testOnly com.malliina.mapbox.BoatMapGeneratorTests
+        run: sbt "testOnly com.malliina.mapbox.BoatMapGeneratorTests"
