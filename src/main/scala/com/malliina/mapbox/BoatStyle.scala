@@ -14,7 +14,7 @@ class BoatStyle(val src: SourceId) {
   val lighthouseNoLight = simpleSymbolLayer("marks-tunnusmajakka", "lighthouse-30-nolight", "TY_JNR", 11, -15)
   val lighthouseYellow = simpleSymbolLayer("marks-merimajakka", "lighthouse-30-yellow", "TY_JNR", 1, -15)
   val sectorLight = simpleSymbolLayer("marks-sektoriloisto", "lighthouse-15", "TY_JNR", 2, 0)
-  val noWaves = simpleSymbolLayer("marks-no-waves", "no-waves-15", "VLM_LAJI", 6, -7.5)
+  val noWaves = simpleSymbolLayer("marks-no-waves", "no-waves-15", "VLM_LAJI", 6, -7.5, minzoom = Option(14.7))
   val speedLimit = symbolLayer(
     "marks-speed-limit",
     "limit-10-30-normal",
@@ -86,15 +86,23 @@ class BoatStyle(val src: SourceId) {
   def markLayer(id: String, icon: String, navFilterValue: Int) =
     simpleSymbolLayer(id, icon, "NAVL_TYYP", navFilterValue, -15)
 
-  def simpleSymbolLayer(id: String, icon: String, prop: String, propValue: Int, offsetY: Double) =
-    symbolLayer(id, icon, FilterSpec(Operator.Eq, prop, propValue), offsetY)
+  def simpleSymbolLayer(
+    id: String,
+    icon: String,
+    prop: String,
+    propValue: Int,
+    offsetY: Double,
+    minzoom: Option[Double] = None
+  ) =
+    symbolLayer(id, icon, FilterSpec(Operator.Eq, prop, propValue), offsetY, minzoom)
 
-  def symbolLayer(id: String, icon: String, filter: FilterLike, offsetY: Double) =
+  def symbolLayer(id: String, icon: String, filter: FilterLike, offsetY: Double, minzoom: Option[Double] = None) =
     LayerStyling(
       "symbol",
       iconLayout(icon, offsetY),
       src,
       Option(filter),
+      minzoom = minzoom,
       layerIdOverride = Option(LayerId(id))
     )
 

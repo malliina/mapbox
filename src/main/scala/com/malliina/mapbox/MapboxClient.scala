@@ -48,7 +48,7 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
   val geo = GeoUtils(http)
   import http.exec
 
-  def apiUrl(path: String, params: Map[String, String] = Map.empty) =
+  def apiUrl(path: String, params: Map[String, String] = Map.empty): FullUrl =
     FullUrl
       .https("api.mapbox.com", path)
       .withQuery("access_token" -> token.token)

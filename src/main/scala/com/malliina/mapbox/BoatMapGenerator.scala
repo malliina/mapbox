@@ -32,14 +32,9 @@ object BoatMapGenerator {
       sectorLight
     )
     val trafficSigns = shapeUrl("vesiliikennemerkit")(
-      noWaves,
-      speedLimit
+      noWaves
+//      speedLimit
     )
-    val layoutImages = marks.styling.map(_.layout).collect { case ImageLayout(name, _, _) => name }
-    val appImages = Seq("boat-resized-opt-30", "trophy-gold-path").map(IconName.apply)
-    val imageFiles = (layoutImages ++ appImages).map { i =>
-      ImageFile.orFail(i)
-    }
     val limitAreas = shapeUrl("rajoitusalue_a")(limitArea)
     val leadingBeacons = shapeUrl("taululinja")(taululinja)
     val depthAreas = shapeUrl("syvyysalue_a", restricted = true, parts = 4)(depthAreaLayers)
@@ -53,7 +48,12 @@ object BoatMapGenerator {
     // Layers will be drawn in the order of this sequence.
     val all =
       Seq(fairways, fairwayAreas, leadingBeacons, depthAreas, areaLimits, limitAreas, depthPoints, marks, trafficSigns)
-    val allTest = Seq(fairwayAreas, fairways, limitAreas)
+    val layoutImages =
+      all.flatMap(_.styling).map(_.layout).collect { case ImageLayout(name, _, _) => name }
+    val appImages = Seq("boat-resized-opt-30", "trophy-gold-path").map(IconName.apply)
+    val imageFiles = (layoutImages ++ appImages).map { i =>
+      ImageFile.orFail(i)
+    }
   }
 
   private def shapeUrl(name: String, restricted: Boolean = false, parts: Int = 1)(styling: LayerStyling*): UrlTask = {
@@ -79,6 +79,14 @@ class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils
     generate(GenerateMapRequest(name, urls.all, urls.imageFiles, "boat-"))
 
   /** Generates a map with the content in `request`.
+    *
+    * The empty style template is obtained as follows:
+    *
+    * <ol>
+    *   <li>Create a new Style in Mapbox's web UI using the Streets template.</li>
+    *   <li>Load the style's JSON using `MapboxClient.style(id)`. Use the test case
+    *   to write it to a file automatically.</li>
+    * </ol>
     *
     * @return style ID and tileset ID
     */
@@ -137,10 +145,12 @@ class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils
       layerFiles = unzipped.map(file => SourceLayerFile(file))
       recipe <- mapbox.makeRecipe(layerFiles)
     } yield {
-      val styleSpecs = layerFiles.flatMap { slf =>
-        task.styling.map { s =>
-          s.toLayerSpec(LayerId(slf.sourceLayerId.value), slf.sourceLayerId)
-        }
+      val styleSpecs = layerFiles.zipWithIndex.flatMap {
+        case (slf, idx) =>
+          task.styling.map { s =>
+            val layerId = if (task.parts > 1) LayerId(s"${task.name}-$idx") else LayerId(task.name)
+            s.toLayerSpec(layerId, slf.sourceLayerId)
+          }
       }
       StyledRecipe(recipe, styleSpecs)
     }

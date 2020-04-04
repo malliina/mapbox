@@ -7,7 +7,7 @@ class BoatMapGeneratorTests extends BaseSuite {
   val mapbox = client.mapbox
 
   ignore("create map from scratch") {
-    client.generate("Test map")
+    await(client.generate("Boat-Tracker Officiell"))
   }
 
   test("can generate map with styles from WFS API") {
