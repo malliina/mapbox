@@ -37,24 +37,24 @@ class WFSTests extends BaseSuite {
     "WFSDataStoreFactory:TIMEOUT" -> 600000
   )
 
-  ignore("read zip") {
+  test("read zip".ignore) {
     val store = DataStoreFinder.getDataStore(Map("url" -> depthAreas.toUri.toString).asJava)
     println(store.getTypeNames.toList)
   }
 
-  ignore("typenames") {
+  test("typenames".ignore) {
     val factory = new WFSDataStoreFactory
     val ds = factory.createDataStore(openCapabilities.asJava)
     ds.getTypeNames.toList.sorted foreach println
   }
 
-  ignore("restricted") {
+  test("restricted".ignore) {
     val factory = new WFSDataStoreFactory
     val ds = factory.createDataStore(restrictedCapabilities.asJava)
     ds.getTypeNames.toList.sorted foreach println
   }
 
-  ignore("write") {
+  test("write".ignore) {
     val factory = new WFSDataStoreFactory
     val ds = factory.createDataStore(restrictedCapabilities.asJava)
     val names = ds.getTypeNames.toList
@@ -74,7 +74,7 @@ class WFSTests extends BaseSuite {
     ds.dispose()
   }
 
-  def write(features: SimpleFeatureIterator, file: String) = {
+  def write(features: SimpleFeatureIterator, file: String): Unit = {
     println(s"Writing $file...")
     val writer = new FeatureJSON()
     val outCollection = new DefaultFeatureCollection()

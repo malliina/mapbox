@@ -1,7 +1,7 @@
 package com.malliina.mapbox
 
 class GeoUtilsTests extends BaseSuite {
-  ignore("can download shapefile and convert to GeoJSON") {
+  test("can download shapefile and convert to GeoJSON".ignore) {
     val geo = GeoUtils(MapboxClient.mapboxHttpClient())
     val task = new GeoTask {
       override def url = BoatMapGenerator.shapeZipUrl("aluemeri_raja_a", restricted = false)

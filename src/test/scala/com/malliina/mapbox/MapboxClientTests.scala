@@ -4,22 +4,28 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 import com.malliina.http.ResponseException
+import munit.FunSuite
 import play.api.libs.json.{JsObject, JsValue, Json, Writes}
 
 import scala.concurrent.Future
 
-class MapboxClientTests extends BaseSuite {
-  val client = MapboxClient.fromConf()
+trait ClientFixture { self: FunSuite =>
+  val http = FunFixture[MapboxClient](
+    opts => MapboxClient.fromConf(),
+    client => client.close()
+  )
+}
 
+class MapboxClientTests extends BaseSuite with ClientFixture {
   val dynoStyle = StyleId("ck0jvmrkf12q21cln11l3v5wp") // Dyno
 
-  ignore("empty template") {
+  http.test("empty template".ignore) { client =>
     val finnishWaters = StyleId("ck8g72lr949js1invb4ovnyhg")
     val s = await(client.style(finnishWaters))
     write(s, "empty-streets-style.json")
   }
 
-  ignore("add icon to style") {
+  http.test("add icon to style".ignore) { client =>
     val style = StyleId("ck8epthw303kj1imowjvyiagy")
     val iconName = "trophy-gold-path"
     val op = client.addImage(IconName(iconName), Paths.get(s"data/images/$iconName.svg"), style)
@@ -27,15 +33,15 @@ class MapboxClientTests extends BaseSuite {
     println(json)
   }
 
-  ignore("list styles") {
+  http.test("list styles".ignore) { client =>
     val s = await(client.stylesTyped)
 //    println(Json.prettyPrint(s))
     println(s.mkString("\n"))
-    //    val bytes = Json.toBytes(s)
-    //    Files.write(Paths.get("dynamic.json"), bytes)
+  //    val bytes = Json.toBytes(s)
+  //    Files.write(Paths.get("dynamic.json"), bytes)
   }
 
-  ignore("get style") {
+  http.test("get style".ignore) { client =>
 //    val styleId = StyleId("ck8d9h3vn2mrn1imyk025ya8v")
     val styleId = StyleId("ck8dijbzj0kgh1iqginjo8okm")
     val s = await(client.style(styleId))
@@ -43,7 +49,7 @@ class MapboxClientTests extends BaseSuite {
     write(s, s"late-$styleId.json")
   }
 
-  ignore("update") {
+  http.test("update".ignore) { client =>
     val wip = StyleId("ck8d9h3vn2mrn1imyk025ya8v")
     val op = client.updateLayer(
       wip,
@@ -77,16 +83,14 @@ class MapboxClientTests extends BaseSuite {
     write(op, s"updated-$wip.json")
   }
 
-  ignore("get sprite") {
-    write(client.sprite(dynoStyle), "sprite.json")
-  }
+  http.test("get sprite".ignore) { client => write(client.sprite(dynoStyle), "sprite.json") }
 
-  ignore("write png sprite") {
+  http.test("write png sprite".ignore) { client =>
     val r = await(client.sprite(dynoStyle, Paths.get("sprite.png")))
     println(r)
   }
 
-  ignore("update dyno") {
+  http.test("update dyno".ignore) { client =>
     val json = Json.parse("""{
         |      "layout": {
         |        "visibility": "visible"
@@ -118,29 +122,29 @@ class MapboxClientTests extends BaseSuite {
 
   }
 
-  ignore("get style 2") {
+  http.test("get style 2".ignore) { client =>
     val id = StyleId("ck0jlem470onc1ckgaxtvlb8m")
     val s = await(client.style(id))
     write(s, "updated.json")
   }
 
-  ignore("line delimit") {
+  http.test("line delimit".ignore) { client =>
     FeatureCollection.lineDelimit(Paths.get("data/avoin:vaylat.json"), Paths.get("data/vaylat-delimited.json"))
   }
 
-  ignore("list tileset sources") {
+  http.test("list tileset sources".ignore) { client =>
     val response = await(client.tilesetSources())
     println(response)
   }
 
-  ignore("create tileset source") {
+  http.test("create tileset source".ignore) { client =>
     val src = userHome.resolve("boat/syvyysalue_a0.json")
 //    val src = Paths.get("data/avoin:vaylaalueet.json")
     val response = await(client.createTilesetSource(TilesetSourceId("syvyysalue_a0"), src))
     println(response)
   }
 
-  ignore("create tileset") {
+  http.test("create tileset".ignore) { client =>
     val name = TilesetName.random()
     val src = TilesetSourceId("mapbox://tileset-source/malliina/gnqfih")
     val sourceLayer = SourceLayerId("custom")
@@ -174,7 +178,7 @@ class MapboxClientTests extends BaseSuite {
       |    }
       |""".stripMargin)
 
-  ignore("serialize spec") {
+  http.test("serialize spec".ignore) { client =>
     val spec = LayerSpec(
       LayerId("cardinal-east"),
       "symbol",
@@ -183,10 +187,10 @@ class MapboxClientTests extends BaseSuite {
       SourceLayerId("custom"),
       Option(FilterSpec(Operator.Eq, "NAVL_TYYP", 6))
     )
-    assert(Json.toJson(spec) === actualLayer)
+    assert(Json.toJson(spec) == actualLayer)
   }
 
-  ignore("add to style") {
+  http.test("add to style".ignore) { client =>
     val layer = Json.parse("""
         |{
         |      "layout": {
@@ -213,27 +217,25 @@ class MapboxClientTests extends BaseSuite {
     val old = s.as[UpdateStyle]
     //    val sources = Map("composite" -> StyleSource.vector(
     //      "mapbox://malliina.1efes2rg,malliina.3zb4yj6s,malliina.bbe2g1zj,malliina.7yl5ppr0,malliina.2bh0gyii,mapbox.mapbox-streets-v7,malliina.bld4dv1t,malliina.9hdccori,malliina.36mi8ybt,malliina.auqlq9ea,malliina.5m3qz8qs,malliina.ctyq7xyj,mapbox.mapbox-terrain-v2,malliina.497s8714"))
-    val update = old.copy(layers = old.layers.map { ls =>
-      ls.init ++ Seq(layer)
-    })
+    val update = old.copy(layers = old.layers.map { ls => ls.init ++ Seq(layer) })
     val updated = await(client.updateStyle(id, update))
     write(updated, "dyno-updated-more.json")
   }
 
-  ignore("publish tileset") {
+  http.test("publish tileset".ignore) { client =>
     //    val jobId = "ck0l7apz1000001qwespt5d5q"
     val tileset = TilesetId("malliina.vndpjq")
     val r = await(client.startPublishJob(tileset))
     println(r)
   }
 
-  ignore("add image") {
+  http.test("add image".ignore) { client =>
     val req = client.addImage(IconName("cardinal-east-30-opt"), Paths.get(s"data/cardinal-east-30-opt.svg"), dynoStyle)
     val res = await(req)
     println(res)
   }
 
-  ignore("renames") {
+  http.test("renames".ignore) { client =>
     Files.list(Paths.get("data")).forEach { path =>
       val name = path.getFileName.toString
       if (!Files.isDirectory(path) && name.startsWith("avoin:")) {
@@ -242,7 +244,7 @@ class MapboxClientTests extends BaseSuite {
     }
   }
 
-  ignore("update sources") {
+  http.test("update sources".ignore) { client =>
     val style = dynoStyle
     val us = await(client.styleTyped(style))
     val srcUrl =
@@ -262,6 +264,4 @@ class MapboxClientTests extends BaseSuite {
     val bytes = Json.prettyPrint(Json.toJson(t)).getBytes(StandardCharsets.UTF_8)
     Files.write(Paths.get("target/maps").resolve(to), bytes)
   }
-
-  override protected def afterAll(): Unit = client.close()
 }
