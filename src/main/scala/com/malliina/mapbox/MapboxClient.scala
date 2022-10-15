@@ -136,7 +136,7 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
     }
 
   def updateStyleJson(style: StyleId, updated: Json): Future[Json] =
-    log.info(s"Updating style '$style'...")
+    log.info(s"Updating style '$style' with '$updated'...")
     patch[Json, Json](apiUrl(s"/styles/v1/$username/$style"), updated)
 
   def tilesetSources() = get[Json](s"/tilesets/v1/sources/$username")

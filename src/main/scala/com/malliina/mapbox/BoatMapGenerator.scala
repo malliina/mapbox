@@ -83,7 +83,7 @@ object BoatMapGenerator:
 class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils):
   import mapbox.http.exec
 
-  val urls = new Urls(source)
+  val urls = Urls(source)
 
   def generate(name: String): Future[GeneratedMap] =
     generate(GenerateMapRequest(name, urls.all, urls.imageFiles, "boat-"))
