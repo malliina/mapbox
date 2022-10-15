@@ -1,6 +1,6 @@
 package com.malliina.mapbox
 
-class BoatStyle(val src: SourceId) {
+class BoatStyle(val src: SourceId):
   val lateralRed = markLayer("lateral-red", "lateral-red-30-opt", 1)
   val lateralGreen = markLayer("lateral-green", "lateral-green-30-opt", 2)
 
@@ -11,14 +11,20 @@ class BoatStyle(val src: SourceId) {
 
   val radar = simpleSymbolLayer("marks-tutka", "radar-15", "TY_JNR", 8, -7.5)
   val leadingBeacon = simpleSymbolLayer("marks-linjamerkki", "leading-beacon-15", "TY_JNR", 3, -7.5)
-  val lighthouseNoLight = simpleSymbolLayer("marks-tunnusmajakka", "lighthouse-30-nolight", "TY_JNR", 11, -15)
-  val lighthouseYellow = simpleSymbolLayer("marks-merimajakka", "lighthouse-30-yellow", "TY_JNR", 1, -15)
+  val lighthouseNoLight =
+    simpleSymbolLayer("marks-tunnusmajakka", "lighthouse-30-nolight", "TY_JNR", 11, -15)
+  val lighthouseYellow =
+    simpleSymbolLayer("marks-merimajakka", "lighthouse-30-yellow", "TY_JNR", 1, -15)
   val sectorLight = simpleSymbolLayer("marks-sektoriloisto", "lighthouse-15", "TY_JNR", 2, 0)
-  val noWaves = simpleSymbolLayer("marks-no-waves", "no-waves-15", "VLM_LAJI", 6, -7.5, minzoom = Option(14.7))
+  val noWaves =
+    simpleSymbolLayer("marks-no-waves", "no-waves-15", "VLM_LAJI", 6, -7.5, minzoom = Option(14.7))
   val speedLimit = symbolLayer(
     "marks-speed-limit",
     "limit-10-30-normal",
-    MultiFilter(Combinator.All, Seq(FilterSpec(Operator.Eq, "RA_ARVO", 10), FilterSpec(Operator.Eq, "VLM_LAJI", 11))),
+    MultiFilter(
+      Combinator.All,
+      Seq(FilterSpec(Operator.Eq, "RA_ARVO", 10), FilterSpec(Operator.Eq, "VLM_LAJI", 11))
+    ),
     0
   )
   val safeWaters = LayerStyling(
@@ -61,7 +67,8 @@ class BoatStyle(val src: SourceId) {
     "fill",
     EmptyLayout,
     src,
-    paint = Option(Paint(`fill-color` = Option("hsl(321, 96%, 56%)"), `fill-opacity` = Option(0.05)))
+    paint =
+      Option(Paint(`fill-color` = Option("hsl(321, 96%, 56%)"), `fill-opacity` = Option(0.05)))
   )
   val depthPointLayers = LayerStyling(
     "symbol",
@@ -96,7 +103,13 @@ class BoatStyle(val src: SourceId) {
   ) =
     symbolLayer(id, icon, FilterSpec(Operator.Eq, prop, propValue), offsetY, minzoom)
 
-  def symbolLayer(id: String, icon: String, filter: FilterLike, offsetY: Double, minzoom: Option[Double] = None) =
+  def symbolLayer(
+    id: String,
+    icon: String,
+    filter: FilterLike,
+    offsetY: Double,
+    minzoom: Option[Double] = None
+  ) =
     LayerStyling(
       "symbol",
       iconLayout(icon, offsetY),
@@ -106,6 +119,6 @@ class BoatStyle(val src: SourceId) {
       layerIdOverride = Option(LayerId(id))
     )
 
-  def iconLayout(name: String, offsetY: Double) = ImageLayout(IconName(name), Option(Seq(0, offsetY)))
+  def iconLayout(name: String, offsetY: Double) =
+    ImageLayout(IconName(name), Option(Seq(0, offsetY)))
   def eqFilter(prop: String, value: Int) = FilterSpec(Operator.Eq, prop, value)
-}

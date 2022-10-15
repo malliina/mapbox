@@ -11,7 +11,7 @@ import org.apache.commons.text.{CharacterPredicates, RandomStringGenerator}
 import scala.io.Source
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
-object Utils {
+object Utils:
   private val generator = new RandomStringGenerator.Builder()
     .withinRange('a', 'z')
     .filteredBy(CharacterPredicates.LETTERS)
@@ -29,33 +29,27 @@ object Utils {
 
   def unzip(zipFile: Path): Seq[Path] = unzip(zipFile, zipFile.getParent)
 
-  def unzip(zipFile: Path, outDir: Path): Seq[Path] = {
+  def unzip(zipFile: Path, outDir: Path): Seq[Path] =
     val outDir = zipFile.getParent
     val zip = new ZipFile(zipFile.toFile)
-    try {
-      zip
-        .entries()
-        .asIterator()
-        .asScala
-        .map { entry =>
-          val out = outDir.resolve(entry.getName)
-          if (entry.isDirectory) {
-            out.toFile.mkdirs()
-          } else {
-            val inStream = zip.getInputStream(entry)
-            try {
-              val outStream = new FileOutputStream(out.toFile)
-              try {
-                IOUtils.copy(inStream, outStream)
-              } finally outStream.close()
-            } finally inStream.close()
-          }
-          out
-        }
-        .toList
-    } finally zip.close()
-  }
+    try zip
+      .entries()
+      .asIterator()
+      .asScala
+      .map { entry =>
+        val out = outDir.resolve(entry.getName)
+        if entry.isDirectory then out.toFile.mkdirs()
+        else
+          val inStream = zip.getInputStream(entry)
+          try
+            val outStream = new FileOutputStream(out.toFile)
+            try IOUtils.copy(inStream, outStream)
+            finally outStream.close()
+          finally inStream.close()
+        out
+      }
+      .toList
+    finally zip.close()
 
   def resourceAsString(file: String) =
     Source.fromResource(s"com/malliina/mapbox/$file", getClass.getClassLoader).mkString
-}

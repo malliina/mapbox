@@ -1,8 +1,9 @@
 package com.malliina.mapbox
 
+import com.malliina.util.AppLogger
+
 import java.io.Serializable
 import java.nio.file.Paths
-
 import org.geotools.data.DataStoreFinder
 import org.geotools.data.simple.SimpleFeatureIterator
 import org.geotools.data.store.ContentFeatureSource
@@ -14,12 +15,11 @@ import org.geotools.geometry.jts.JTS
 import org.geotools.referencing.CRS
 import org.geotools.referencing.crs.DefaultGeographicCRS
 import org.locationtech.jts.geom.Geometry
-import org.slf4j.LoggerFactory
 
 import scala.jdk.CollectionConverters.MapHasAsJava
 
-class WFSTests extends BaseSuite {
-  val log = LoggerFactory.getLogger(getClass)
+class WFSTests extends BaseSuite:
+  private val log = AppLogger(getClass)
   val openCapabilities = connectionParameters(
     "https://julkinen.vayla.fi/inspirepalvelu/avoin/wfs?request=getcapabilities"
   )
@@ -60,36 +60,34 @@ class WFSTests extends BaseSuite {
     val names = ds.getTypeNames.toList
     names.map { name =>
       log.info(s"Inspecting $name...")
-      try {
+      try
         val src: ContentFeatureSource = ds.getFeatureSource(name)
         val features = src.getFeatures.features()
         write(features, s"${name.replace(":", "-")}.json")
-      } catch {
+      catch
         case e: Throwable =>
           log.error(s"Failed to read $name", e)
-      } finally {
+      finally {
 //        ds.dispose()
       }
     }
     ds.dispose()
   }
 
-  def write(features: SimpleFeatureIterator, file: String): Unit = {
+  def write(features: SimpleFeatureIterator, file: String): Unit =
     println(s"Writing $file...")
     val writer = new FeatureJSON()
     val outCollection = new DefaultFeatureCollection()
-    while (features.hasNext) {
+    while features.hasNext do
       val f = features.next()
       val p = f.getDefaultGeometry.asInstanceOf[Geometry]
       val targetCrs = DefaultGeographicCRS.WGS84
-      val transformation = CRS.findMathTransform(f.getBounds.getCoordinateReferenceSystem, targetCrs, true)
+      val transformation =
+        CRS.findMathTransform(f.getBounds.getCoordinateReferenceSystem, targetCrs, true)
       val tp = JTS.transform(p, transformation)
       val builder = new SimpleFeatureBuilder(f.getType)
       val feature = builder.buildFeature(null)
       feature.setAttributes(f.getAttributes)
       feature.setDefaultGeometry(tp)
       outCollection.add(feature)
-    }
     writer.writeFeatureCollection(outCollection, Paths.get(file).toFile)
-  }
-}

@@ -2,21 +2,22 @@ package com.malliina.mapbox
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
-
 import com.malliina.http.ResponseException
 import munit.FunSuite
-import play.api.libs.json.{JsObject, JsValue, Json, Writes}
 
+import io.circe.*
+import io.circe.generic.semiauto.*
+import io.circe.syntax.*
 import scala.concurrent.Future
 
-trait ClientFixture { self: FunSuite =>
+trait ClientFixture:
+  self: FunSuite =>
   val http = FunFixture[MapboxClient](
     opts => MapboxClient.fromConf(),
     client => client.close()
   )
-}
 
-class MapboxClientTests extends BaseSuite with ClientFixture {
+class MapboxClientTests extends BaseSuite with ClientFixture:
   val dynoStyle = StyleId("ck0jvmrkf12q21cln11l3v5wp") // Dyno
 
   http.test("empty template".ignore) { client =>
@@ -60,7 +61,9 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
           EmptyLayout,
           SourceId("ytcgew"),
           SourceLayerId("nav-rajoitusalue_a0"),
-          paint = Option(Paint(`fill-color` = Option("hsl(321, 96%, 56%)"), `fill-opacity` = Option(0.01)))
+          paint = Option(
+            Paint(`fill-color` = Option("hsl(321, 96%, 56%)"), `fill-opacity` = Option(0.01))
+          )
         ),
         LayerSpec(
           LayerId("nav-vaylaalueet0"),
@@ -68,7 +71,9 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
           EmptyLayout,
           SourceId("ytcgew"),
           SourceLayerId("nav-vaylaalueet0"),
-          paint = Option(Paint(`fill-color` = Option("hsl(118, 96%, 37%)"), `fill-opacity` = Option(0.02)))
+          paint = Option(
+            Paint(`fill-color` = Option("hsl(118, 96%, 37%)"), `fill-opacity` = Option(0.02))
+          )
         )
 //        LayerSpec(
 //          LayerId("nav-syvyysalue_a0"),
@@ -91,7 +96,8 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
   }
 
   http.test("update dyno".ignore) { client =>
-    val json = Json.parse("""{
+    val json = io.circe.parser
+      .decode[JsonObject]("""{
         |      "layout": {
         |        "visibility": "visible"
         |      },
@@ -102,23 +108,23 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
         |        "line-color": "hsl(122, 89%, 52%)"
         |      },
         |      "source-layer": "vaylat_1-13qzbd"
-        |    }""".stripMargin).as[JsObject]
+        |    }""".stripMargin)
+      .fold(err => throw Exception(err.getMessage), identity)
     val id = StyleId("ck0jvmrkf12q21cln11l3v5wp")
     val s = await(client.style(id))
-    try {
+    try
       val sources = Map(
         "composite" -> StyleSource.vector(
           "mapbox://malliina.1efes2rg,malliina.3zb4yj6s,malliina.bbe2g1zj,malliina.7yl5ppr0,malliina.2bh0gyii,mapbox.mapbox-streets-v7,malliina.bld4dv1t,malliina.9hdccori,malliina.36mi8ybt,malliina.auqlq9ea,malliina.5m3qz8qs,malliina.ctyq7xyj,mapbox.mapbox-terrain-v2,malliina.497s8714,malliina.9si6bepc"
         )
       )
-      val old = s.as[UpdateStyle]
+      val old = s.as[UpdateStyle].fold(err => throw Exception(err.message), identity)
       val update = old.copy(sources = Option(sources))
       val updated = await(client.updateStyle(id, update))
       write(updated, "dyno-updated.json")
-    } catch {
+    catch
       case re: ResponseException =>
         println(re.response.asString)
-    }
 
   }
 
@@ -129,7 +135,10 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
   }
 
   http.test("line delimit".ignore) { client =>
-    FeatureCollection.lineDelimit(Paths.get("data/avoin:vaylat.json"), Paths.get("data/vaylat-delimited.json"))
+    FeatureCollection.lineDelimit(
+      Paths.get("data/avoin:vaylat.json"),
+      Paths.get("data/vaylat-delimited.json")
+    )
   }
 
   http.test("list tileset sources".ignore) { client =>
@@ -157,7 +166,8 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
     println(r)
   }
 
-  val actualLayer = Json.parse("""{
+  val actualLayer = io.circe.parser
+    .parse("""{
       |      "layout": {
       |        "icon-image": "cardinal-east-30-opt",
       |        "icon-offset": [
@@ -177,6 +187,7 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
       |      "source-layer": "custom"
       |    }
       |""".stripMargin)
+    .fold(err => throw Exception(err.message), identity)
 
   http.test("serialize spec".ignore) { client =>
     val spec = LayerSpec(
@@ -187,11 +198,12 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
       SourceLayerId("custom"),
       Option(FilterSpec(Operator.Eq, "NAVL_TYYP", 6))
     )
-    assert(Json.toJson(spec) == actualLayer)
+    assert(spec.asJson == actualLayer)
   }
 
   http.test("add to style".ignore) { client =>
-    val layer = Json.parse("""
+    val layer = io.circe.parser
+      .decode[JsonObject]("""
         |{
         |      "layout": {
         |        "icon-image": "cardinal-east-30-opt",
@@ -211,10 +223,11 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
         |      "paint": {},
         |      "source-layer": "custom"
         |    }
-        |""".stripMargin).as[JsObject]
+        |""".stripMargin)
+      .fold(err => throw Exception(err.getMessage), identity)
     val id = dynoStyle
     val s = await(client.style(id))
-    val old = s.as[UpdateStyle]
+    val old = s.as[UpdateStyle].fold(err => throw Exception(err.message), identity)
     //    val sources = Map("composite" -> StyleSource.vector(
     //      "mapbox://malliina.1efes2rg,malliina.3zb4yj6s,malliina.bbe2g1zj,malliina.7yl5ppr0,malliina.2bh0gyii,mapbox.mapbox-streets-v7,malliina.bld4dv1t,malliina.9hdccori,malliina.36mi8ybt,malliina.auqlq9ea,malliina.5m3qz8qs,malliina.ctyq7xyj,mapbox.mapbox-terrain-v2,malliina.497s8714"))
     val update = old.copy(layers = old.layers.map { ls => ls.init ++ Seq(layer) })
@@ -230,7 +243,11 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
   }
 
   http.test("add image".ignore) { client =>
-    val req = client.addImage(IconName("cardinal-east-30-opt"), Paths.get(s"data/cardinal-east-30-opt.svg"), dynoStyle)
+    val req = client.addImage(
+      IconName("cardinal-east-30-opt"),
+      Paths.get(s"data/cardinal-east-30-opt.svg"),
+      dynoStyle
+    )
     val res = await(req)
     println(res)
   }
@@ -238,9 +255,8 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
   http.test("renames".ignore) { client =>
     Files.list(Paths.get("data")).forEach { path =>
       val name = path.getFileName.toString
-      if (!Files.isDirectory(path) && name.startsWith("avoin:")) {
+      if !Files.isDirectory(path) && name.startsWith("avoin:") then
         Files.move(path, path.getParent.resolve(s"avoin-${name.drop("avoin:".length)}"))
-      }
     }
   }
 
@@ -254,14 +270,11 @@ class MapboxClientTests extends BaseSuite with ClientFixture {
     println(json)
   }
 
-  def write(f: Future[JsValue], to: String) = {
+  def write(f: Future[Json], to: String) =
     val json = await(f)
-    val bytes = Json.toBytes(json)
+    val bytes = json.noSpaces.getBytes(StandardCharsets.UTF_8)
     Files.write(Paths.get(to), bytes)
-  }
 
-  def write[T: Writes](t: T, to: String) = {
-    val bytes = Json.prettyPrint(Json.toJson(t)).getBytes(StandardCharsets.UTF_8)
+  def write[T: Encoder](t: T, to: String) =
+    val bytes = t.asJson.noSpaces.getBytes(StandardCharsets.UTF_8)
     Files.write(Paths.get("target/maps").resolve(to), bytes)
-  }
-}
