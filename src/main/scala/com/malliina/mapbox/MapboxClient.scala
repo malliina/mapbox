@@ -6,7 +6,7 @@ import java.util
 import java.util.concurrent.TimeUnit
 import concurrent.duration.{DurationLong, FiniteDuration}
 import com.malliina.http.{FullUrl, OkClient, OkHttpResponse, ResponseException}
-import com.malliina.mapbox.MapboxClient.log
+import com.malliina.mapbox.MapboxClient.{log, printer}
 import com.malliina.util.AppLogger
 import com.malliina.values.{AccessToken, Username}
 import com.typesafe.config.ConfigFactory
@@ -22,6 +22,7 @@ object MapboxClient:
   private val log = AppLogger(getClass)
 
   val confFile = Paths.get(sys.props("user.home")).resolve(".mapbox/mapbox.conf")
+  val printer = Printer.noSpaces.copy(dropNullValues = true)
 
   def fromConf(): MapboxClient =
     val conf = ConfigFactory.parseFile(confFile.toFile).resolve()
@@ -129,7 +130,7 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
       val path = Paths.get(s"style-${System.currentTimeMillis()}.json")
       Files.write(
         path,
-        r.spaces2.getBytes(StandardCharsets.UTF_8)
+        stringify(r).getBytes(StandardCharsets.UTF_8)
       )
       log.info(s"Updated style '$style'. Wrote to '${path.toAbsolutePath}'.")
       r
@@ -282,7 +283,7 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
       }
 
   def patchEmpty[W: Encoder](url: FullUrl, w: W): Future[OkHttpResponse] =
-    val body = RequestBody.create(w.asJson.noSpaces, OkClient.jsonMediaType)
+    val body = RequestBody.create(stringify(w), OkClient.jsonMediaType)
     val req = new Request.Builder().url(url.url).patch(body).build()
     http.execute(req)
 
@@ -290,5 +291,7 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
     patchEmpty(url, w).flatMap { r =>
       http.parse[R](r, url)
     }
+
+  def stringify[W: Encoder](w: W) = printer.print(w.asJson)
 
   def close(): Unit = http.close()

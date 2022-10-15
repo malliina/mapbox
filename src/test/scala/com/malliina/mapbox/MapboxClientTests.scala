@@ -272,9 +272,9 @@ class MapboxClientTests extends BaseSuite with ClientFixture:
 
   def write(f: Future[Json], to: String) =
     val json = await(f)
-    val bytes = json.noSpaces.getBytes(StandardCharsets.UTF_8)
+    val bytes = MapboxClient.printer.print(json).getBytes(StandardCharsets.UTF_8)
     Files.write(Paths.get(to), bytes)
 
   def write[T: Encoder](t: T, to: String) =
-    val bytes = t.asJson.noSpaces.getBytes(StandardCharsets.UTF_8)
+    val bytes = MapboxClient.printer.print(t.asJson).getBytes(StandardCharsets.UTF_8)
     Files.write(Paths.get("target/maps").resolve(to), bytes)

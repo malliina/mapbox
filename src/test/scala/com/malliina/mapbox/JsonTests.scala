@@ -13,5 +13,6 @@ class JsonTests extends FunSuite:
       SourceLayerId("1"),
       filter = None
     ).asJson
-    println(json)
+    val printed = MapboxClient.printer.print(json)
+    assert(!printed.contains("null"))
   }
