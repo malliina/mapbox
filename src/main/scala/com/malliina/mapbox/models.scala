@@ -45,7 +45,8 @@ case class TilesetName(value: String) extends WrappedString
 object TilesetName extends BoatCompanion[TilesetName]
 
 case class TilesetSourceId(value: String) extends WrappedString
-object TilesetSourceId extends BoatCompanion[TilesetSourceId]
+object TilesetSourceId extends BoatCompanion[TilesetSourceId]:
+  val MaxLength = 32
 
 case class JobId(value: String) extends WrappedString
 object JobId extends StringCompanion[JobId]
@@ -369,7 +370,10 @@ trait GeoTask:
   *   layer styles
   */
 case class UrlTask(name: String, url: FullUrl, parts: Int, styling: Seq[LayerStyling])
-  extends GeoTask
+  extends GeoTask:
+  def toFiles(unzipped: Seq[Path]): FileTask = FileTask(name, unzipped, parts, styling)
+
+case class FileTask(name: String, files: Seq[Path], parts: Int, styling: Seq[LayerStyling])
 
 case class SourceLayerFile(sourceLayerId: SourceLayerId, file: Path)
 

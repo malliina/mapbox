@@ -6,7 +6,7 @@ class BoatMapGeneratorTests extends BaseSuite:
   val map = FunFixture[BoatMapGenerator](_ => BoatMapGenerator(), _.mapbox.close())
 
   map.test("create map from scratch".ignore) { client =>
-    await(client.generate("Boat-Tracker 2022"))
+    await(client.generate("Boat-Tracker API"))
   }
 
   map.test("can generate map with styles from WFS API".ignore) { client =>
@@ -24,4 +24,10 @@ class BoatMapGeneratorTests extends BaseSuite:
     assert(d.code == 204)
     val ts = await(mapbox.deleteTileset(map.tileset))
     assert(ts.code == 200)
+  }
+
+  map.test("create style".ignore) { client =>
+    val spec = client.styleFromResource().copy(name = "Boom")
+    val f = client.mapbox.createStyleTyped(spec)
+    await(f)
   }

@@ -131,9 +131,10 @@ class MapboxClientTests extends BaseSuite with ClientFixture:
   }
 
   http.test("get style 2".ignore) { client =>
-    val id = StyleId("ck0jlem470onc1ckgaxtvlb8m")
+//    val id = StyleId("cl9bfpvjw003b15rw407l70h2")
+    val id = StyleId("ck8lhls0r0obm1ilkvglk0ulr")
     val s = await(client.style(id))
-    write(s, "updated.json")
+    write(s, "prod.json")
   }
 
   http.test("line delimit".ignore) { client =>

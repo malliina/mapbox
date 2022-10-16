@@ -4,6 +4,7 @@ import com.malliina.http.{FullUrl, ResponseException}
 import com.malliina.mapbox.BoatMapGenerator.*
 import com.malliina.util.AppLogger
 
+import java.nio.file.Path
 import scala.concurrent.Future
 
 object BoatMapGenerator:
@@ -35,15 +36,19 @@ class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils
     *   style ID and tileset ID
     */
   def generate(request: GenerateMapRequest): Future[GeneratedMap] =
-    val template = Utils.resourceAsString("streets-cl9a65qy1000814lbx2tctoq1.json")
-    val style = io.circe.parser
-      .decode[UpdateStyle](template)
-      .fold(err => throw Exception(s"Failed to parse JSON. ${err.getMessage}"), identity)
+    val style = styleFromResource()
     val payload = style.copy(name = request.name)
     for
       style <- mapbox.createStyleTyped(payload)
       tileset <- installTo(style.id, request)
     yield GeneratedMap(style.id, tileset)
+
+  def styleFromResource(): UpdateStyle =
+    val template = Utils.resourceAsString("empty-streets-style.json")
+//    val template = Utils.resourceAsString("streets-cl9a65qy1000814lbx2tctoq1.json")
+    io.circe.parser
+      .decode[UpdateStyle](template)
+      .fold(err => throw Exception(s"Failed to parse JSON. ${err.getMessage}"), identity)
 
   /** Adds nautical charts of Finnish waters to the provided Mapbox `style`.
     *
@@ -103,8 +108,12 @@ class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils
   private def shapeToRecipe(task: UrlTask, filePrefix: String): Future[StyledRecipe] =
     for
       unzipped <- geo.shapeToGeoJson(task, filePrefix)
-      layerFiles = unzipped.map(file => SourceLayerFile(file))
-      recipe <- mapbox.makeRecipe(layerFiles)
+      recipe <- geoJsonToRecipe(task.toFiles(unzipped))
+    yield recipe
+
+  private def geoJsonToRecipe(task: FileTask): Future[StyledRecipe] =
+    val layerFiles = task.files.map(file => SourceLayerFile(file))
+    for recipe <- mapbox.makeRecipe(layerFiles)
     yield
       val styleSpecs = layerFiles.zipWithIndex.flatMap { case (slf, idx) =>
         task.styling.map { s =>

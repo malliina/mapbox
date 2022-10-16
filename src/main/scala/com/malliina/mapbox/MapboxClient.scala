@@ -71,7 +71,10 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
   def makeRecipe(geoJsons: Seq[SourceLayerFile]): Future[Recipe] =
     Concurrent
       .traverseSlowly(geoJsons, parallelism = 1) { file =>
-        val name = FilenameUtils.removeExtension(file.file.getFileName.toString)
+        val name = FilenameUtils
+          .removeExtension(file.file.getFileName.toString)
+          .toLowerCase
+          .take(TilesetSourceId.MaxLength)
         createTilesetSource(TilesetSourceId(name), file.file).map { response =>
           log.info(s"Created tileset source '${response.id}' from '${file.file}'.")
           file.sourceLayerId -> LayerObject(response.id)
