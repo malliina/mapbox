@@ -6,10 +6,10 @@ class BoatMapGeneratorTests extends BaseSuite:
   val map = FunFixture[BoatMapGenerator](_ => BoatMapGenerator(), _.mapbox.close())
 
   map.test("create map from scratch".ignore) { client =>
-    await(client.generate("Boat-Tracker Officiell"))
+    await(client.generate("Boat-Tracker 2022"))
   }
 
-  map.test("can generate map with styles from WFS API") { client =>
+  map.test("can generate map with styles from WFS API".ignore) { client =>
     val mapbox = client.mapbox
     val date = LocalDate.now(ZoneId.of("Europe/Helsinki"))
     val prefix = s"test-$date-"

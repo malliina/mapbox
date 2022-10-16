@@ -355,6 +355,7 @@ object UpdateStyle:
   implicit val json: Codec[UpdateStyle] = deriveCodec[UpdateStyle]
 
 trait GeoTask:
+  def name: String
   def url: FullUrl
   def parts: Int
 

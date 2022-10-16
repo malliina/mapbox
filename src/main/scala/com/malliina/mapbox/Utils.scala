@@ -1,10 +1,9 @@
 package com.malliina.mapbox
 
 import java.io.FileOutputStream
-import java.nio.file.Path
+import java.nio.file.{Files, Path}
 import java.text.Normalizer
 import java.util.zip.ZipFile
-
 import org.apache.commons.io.IOUtils
 import org.apache.commons.text.{CharacterPredicates, RandomStringGenerator}
 
@@ -30,7 +29,7 @@ object Utils:
   def unzip(zipFile: Path): Seq[Path] = unzip(zipFile, zipFile.getParent)
 
   def unzip(zipFile: Path, outDir: Path): Seq[Path] =
-    val outDir = zipFile.getParent
+    Files.createDirectories(outDir)
     val zip = new ZipFile(zipFile.toFile)
     try zip
       .entries()

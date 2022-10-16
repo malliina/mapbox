@@ -15,71 +15,6 @@ object BoatMapGenerator:
   ): BoatMapGenerator =
     new BoatMapGenerator(source, mapbox, GeoUtils(mapbox.http))
 
-  class Urls(src: SourceId) extends BoatStyle(src):
-    val fairwayAreas = shapeUrl("vaylaalueet")(vaylaAlueet)
-    val fairways = shapeUrl("vaylat")(vaylat)
-    val marks = shapeUrl("turvalaitteet")(
-      safeWaters,
-      kummeli,
-      lateralRed,
-      lateralGreen,
-      cardinalNorth,
-      cardinalSouth,
-      cardinalWest,
-      cardinalEast,
-      radar,
-      leadingBeacon,
-      lighthouseNoLight,
-      lighthouseYellow,
-      sectorLight
-    )
-    val trafficSigns = shapeUrl("vesiliikennemerkit")(
-      noWaves
-//      speedLimit
-    )
-    val limitAreas = shapeUrl("rajoitusalue_a")(limitArea)
-    val leadingBeacons = shapeUrl("taululinja")(taululinja)
-    val depthAreas = shapeUrl("syvyysalue_a", restricted = true, parts = 4)(depthAreaLayers)
-    val areaLimits = shapeUrl("aluemeri_raja_a")(aluemeriRaja)
-    // No styling? Not used?
-//    val depthLines = shapeUrl("syvyyskayra_v", restricted = true, parts = 2)()
-    val depthPoints = shapeUrl("syvyyspiste_p", restricted = true, parts = 4)(
-      depthPointLayers
-    )
-    // https://docs.mapbox.com/api/maps/#styles
-    // Layers will be drawn in the order of this sequence.
-    val all =
-      Seq(
-        fairways,
-        fairwayAreas,
-        leadingBeacons,
-        depthAreas,
-        areaLimits,
-        limitAreas,
-        depthPoints,
-        marks,
-        trafficSigns
-      )
-    val layoutImages =
-      all.flatMap(_.styling).map(_.layout).collect { case ImageLayout(name, _, _) => name }
-    val appImages = Seq("boat-resized-opt-30", "trophy-gold-path").map(IconName.apply)
-    val imageFiles = (layoutImages ++ appImages).map { i =>
-      ImageFile.orFail(i)
-    }
-
-  private def shapeUrl(name: String, restricted: Boolean = false, parts: Int = 1)(
-    styling: LayerStyling*
-  ): UrlTask =
-    val url = shapeZipUrl(name, restricted)
-    UrlTask(name, url, parts, styling)
-
-  def shapeZipUrl(name: String, restricted: Boolean): FullUrl =
-    val modifier = if restricted then "rajoitettu" else "avoin"
-    FullUrl.https(
-      "julkinen.vayla.fi",
-      s"/inspirepalvelu/wfs?request=getfeature&typename=$modifier:$name&outputformat=shape-zip"
-    )
-
 class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils):
   import mapbox.http.exec
 
@@ -100,12 +35,10 @@ class BoatMapGenerator(source: SourceId, val mapbox: MapboxClient, geo: GeoUtils
     *   style ID and tileset ID
     */
   def generate(request: GenerateMapRequest): Future[GeneratedMap] =
-    val template = Utils.resourceAsString("empty-streets-style.json")
+    val template = Utils.resourceAsString("streets-cl9a65qy1000814lbx2tctoq1.json")
     val style = io.circe.parser
       .decode[UpdateStyle](template)
-      .getOrElse(
-        throw Exception("Failed to parse JSON.")
-      )
+      .fold(err => throw Exception(s"Failed to parse JSON. ${err.getMessage}"), identity)
     val payload = style.copy(name = request.name)
     for
       style <- mapbox.createStyleTyped(payload)

@@ -23,8 +23,6 @@ import scala.util.Random
 object GeoUtils:
   private val log = AppLogger(getClass)
 
-  def apply(http: OkClient): GeoUtils = new GeoUtils(http)
-
 class GeoUtils(val http: OkClient):
   import http.exec
 
@@ -35,20 +33,26 @@ class GeoUtils(val http: OkClient):
     *   file to download
     * @return
     */
-  def shapeToGeoJson(task: GeoTask, filePrefix: String): Future[Seq[Path]] =
+  def shapeToGeoJson(
+    task: GeoTask,
+    filePrefix: String,
+    dir: Path = Files.createTempDirectory("shapes")
+  ): Future[Seq[Path]] =
     val url = task.url
-    val downloadedFile = Files.createTempFile("shape-", ".zip")
-    log.info(s"Downloading '$url' to '${downloadedFile.toAbsolutePath}'...")
+    val downloadedFile = Files.createTempFile(dir, s"${task.name}-", ".zip")
+    val absolutePath = downloadedFile.toAbsolutePath
+    log.info(s"Downloading '$url' to '$absolutePath'...")
     download(url, downloadedFile).flatMap { size =>
-      log.info(s"Downloaded $size to '$downloadedFile'. Unzipping...")
+      log.info(s"Downloaded $size to '$absolutePath'. Unzipping...")
+      val unzipFolder = FilenameUtils.removeExtension(downloadedFile.getFileName.toString)
       Utils
-        .unzip(downloadedFile)
+        .unzip(downloadedFile, downloadedFile.getParent.resolve(unzipFolder))
         .find(f => FilenameUtils.getExtension(f.getFileName.toString) == "shp")
         .map { shape =>
           Future.successful(convert(shape, task.parts, filePrefix))
         }
         .getOrElse {
-          Future.failed(new Exception(s"No shapefile found in '${downloadedFile.toAbsolutePath}'."))
+          Future.failed(Exception(s"No shapefile found in '$absolutePath'."))
         }
     }
 
@@ -63,7 +67,7 @@ class GeoUtils(val http: OkClient):
             Concurrent.scheduleIn(5.seconds) {
               download(url, to, retries - 1)
             }
-          else Future.failed(new ResponseException(err)),
+          else Future.failed(ResponseException(err)),
         sz => Future.successful(sz)
       )
     }
@@ -90,7 +94,7 @@ class GeoUtils(val http: OkClient):
       val targetCrs = crs.DefaultGeographicCRS.WGS84
       val transformation = CRS.findMathTransform(srcCrs, targetCrs, true)
       val srcFeatures = coll.features()
-      while srcFeatures.hasNext do
+      try while srcFeatures.hasNext do
         val srcFeature = srcFeatures.next()
         val geo: Geometry = srcFeature.getDefaultGeometry.asInstanceOf[Geometry]
         val transformed = JTS.transform(geo, transformation)
@@ -100,13 +104,13 @@ class GeoUtils(val http: OkClient):
         feature.setDefaultGeometry(transformed)
         val idx = Random.between(0, splitFactor)
         outs(idx).add(feature)
-      srcFeatures.close()
+      finally srcFeatures.close()
       outs
     }
     (0 until splitFactor).map { i =>
       val name = FilenameUtils.removeExtension(shapeFile.getFileName.toString)
       val fileOut = parent.resolve(s"$filePrefix-$name$i.json")
       writer.writeFeatureCollection(transformedCollections.head(i), fileOut.toFile)
-      log.info(s"Wrote '$fileOut'.")
+      log.info(s"Wrote '${fileOut.toAbsolutePath}'.")
       fileOut
     }.toList

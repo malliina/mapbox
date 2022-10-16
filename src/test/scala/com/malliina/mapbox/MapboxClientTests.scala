@@ -13,7 +13,7 @@ import scala.concurrent.Future
 trait ClientFixture:
   self: FunSuite =>
   val http = FunFixture[MapboxClient](
-    opts => MapboxClient.fromConf(),
+    _ => MapboxClient.fromConf(),
     client => client.close()
   )
 
@@ -42,12 +42,12 @@ class MapboxClientTests extends BaseSuite with ClientFixture:
   //    Files.write(Paths.get("dynamic.json"), bytes)
   }
 
-  http.test("get style".ignore) { client =>
+  http.test("get style") { client =>
 //    val styleId = StyleId("ck8d9h3vn2mrn1imyk025ya8v")
-    val styleId = StyleId("ck8dijbzj0kgh1iqginjo8okm")
+    val styleId = StyleId("cl9a65qy1000814lbx2tctoq1")
     val s = await(client.style(styleId))
     //    println(Json.prettyPrint(s))
-    write(s, s"late-$styleId.json")
+    write(s, s"streets-$styleId.json")
   }
 
   http.test("update".ignore) { client =>
@@ -88,7 +88,9 @@ class MapboxClientTests extends BaseSuite with ClientFixture:
     write(op, s"updated-$wip.json")
   }
 
-  http.test("get sprite".ignore) { client => write(client.sprite(dynoStyle), "sprite.json") }
+  http.test("get sprite".ignore) { client =>
+    write(client.sprite(dynoStyle), "sprite.json")
+  }
 
   http.test("write png sprite".ignore) { client =>
     val r = await(client.sprite(dynoStyle, Paths.get("sprite.png")))
@@ -277,4 +279,6 @@ class MapboxClientTests extends BaseSuite with ClientFixture:
 
   def write[T: Encoder](t: T, to: String) =
     val bytes = MapboxClient.printer.print(t.asJson).getBytes(StandardCharsets.UTF_8)
-    Files.write(Paths.get("target/maps").resolve(to), bytes)
+    val dir = Paths.get("target/maps")
+    Files.createDirectories(dir)
+    Files.write(dir.resolve(to), bytes)
