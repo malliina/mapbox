@@ -53,7 +53,7 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
       .withQuery(params.toList*)
 
   def style(id: StyleId): Future[Json] = get[Json](s"/styles/v1/$username/$id")
-  def styleTyped(id: StyleId) = get[UpdateStyle](s"/styles/v1/$username/$id")
+  def styleTyped(id: StyleId): Future[UpdateStyle] = get[UpdateStyle](s"/styles/v1/$username/$id")
   def styles = get[Json](s"/styles/v1/$username")
   def stylesTyped = get[Seq[Style]](s"/styles/v1/$username")
   def createStyleTyped(style: UpdateStyle): Future[FullStyle] = createStyle(style.asJson)
@@ -108,7 +108,7 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
     transformStyle(style) { old =>
       val json = newLayers.asJson
       log.info(
-        s"Installing source '$sourceId' with tileset '$tilesetId' and layers '$json' to style '$style'."
+        s"Installing source '$sourceId' with tileset '$tilesetId' and layers '$json' to style '$style' as draft $draft"
       )
       old.withSource(sourceId, tilesetId).withLayers(newLayers).copy(draft = draft)
     }
