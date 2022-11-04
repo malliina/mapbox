@@ -113,6 +113,11 @@ case class TilesetSpec(name: TilesetName, recipe: Recipe, description: Option[St
 object TilesetSpec:
   implicit val json: Codec[TilesetSpec] = deriveCodec[TilesetSpec]
 
+case class Tileset(id: TilesetId, name: TilesetName)
+
+object Tileset:
+  implicit val json: Codec[Tileset] = deriveCodec[Tileset]
+
 case class SimpleLayer(id: String, `type`: String, paint: JsonObject, interactive: Boolean)
 
 object SimpleLayer:

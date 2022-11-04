@@ -66,7 +66,7 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
 
   def sources = get[Json](s"/tilesets/v1/sources/$username")
 
-  def tilesets = get[Json](s"/tilesets/v1/$username")
+  def tilesets: Future[Seq[Tileset]] = get[Seq[Tileset]](s"/tilesets/v1/$username")
 
   def makeRecipe(geoJsons: Seq[SourceLayerFile]): Future[Recipe] =
     Concurrent
@@ -263,7 +263,7 @@ class MapboxClient(token: AccessToken, val username: Username = Username("mallii
       r
     }
 
-  def get[R: Decoder](path: String) = http.getAs[R](apiUrl(path))
+  def get[R: Decoder](path: String): Future[R] = http.getAs[R](apiUrl(path))
 
   def put[R: Decoder](url: FullUrl, body: RequestBody) =
     val req = new Request.Builder().url(url.url).put(body).build()

@@ -131,10 +131,20 @@ class MapboxClientTests extends BaseSuite with ClientFixture:
   }
 
   http.test("get style 2".ignore) { client =>
-//    val id = StyleId("cl9bfpvjw003b15rw407l70h2")
-    val id = StyleId("ck8lhls0r0obm1ilkvglk0ulr")
+    val idNew = StyleId("cl9bfpvjw003b15rw407l70h2")
+    val idOld = StyleId("ck8lhls0r0obm1ilkvglk0ulr")
+    val id = idOld
     val s = await(client.style(id))
-    write(s, "prod.json")
+    write(s, "prod-old.json")
+  }
+
+  http.test("delete tilesets".ignore) { client =>
+    val tilesets = await(client.tilesets)
+    val keep = TilesetId("malliina.boat-paaogz")
+    val task = Future.traverse(tilesets.filterNot(_.id == keep)) { tileset =>
+      client.deleteTileset(tileset.id)
+    }
+    await(task)
   }
 
   http.test("line delimit".ignore) { client =>
